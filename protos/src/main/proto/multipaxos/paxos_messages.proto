@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "cs236351.multipaxos";
+//option java_outer_classname = "PaxosProtocol";
+
+package cs236351.multipaxos;
+
+enum Ack {
+  YES = 0;
+  NO = 1;
+}
+
+message RoundNo {
+  int32 no = 1;
+  int32 id = 2;
+}
+
+message Prepare {
+  RoundNo round_no = 1;
+  int32 instance_no = 2;
+  bytes value = 3;
+}
+
+message Promise {
+  RoundNo round_no = 1;
+  Ack ack = 2;
+  RoundNo good_round_no = 3;
+  bytes value = 4;
+  int32 instance_no = 5;
+}
+
+message Accept {
+  RoundNo round_no = 1;
+  bytes value = 2;
+  int32 instance_no = 3;
+}
+
+message Accepted {
+  RoundNo round_no = 1;
+  Ack ack = 2;
+  int32 instance_no = 3;
+}
+
+message Commit {
+  bytes value = 1;
+  int32 instance_no = 3;
+}
+
