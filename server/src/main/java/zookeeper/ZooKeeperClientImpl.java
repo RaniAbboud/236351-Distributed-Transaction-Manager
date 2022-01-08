@@ -2,13 +2,17 @@ package zookeeper;
 
 import com.google.common.hash.Hashing;
 import constants.Constants;
+import javassist.bytecode.stackmap.TypeData;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 //class ServerNodeData {
 //    String address;
@@ -21,6 +25,7 @@ import java.util.List;
 //}
 
 public class ZooKeeperClientImpl implements ZooKeeperClient {
+    private static final Logger LOGGER = Logger.getLogger( TypeData.ClassName.class.getName() );
     private ZooKeeper zk;
     private String serverId;
     private HashMap<String, Integer> locks = new HashMap<>();
@@ -88,12 +93,12 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     @Override
     public String registerServer(String address) throws InterruptedException, KeeperException {
         byte[] serverNodeData = address.getBytes();
-        String serverId = zk.create(serversPath + "/server", serverNodeData, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+        String serverId = zk.create(serversPath + "/server-", serverNodeData, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
         // Register to /shards/:shardId/
-        String serverIndexStr = toString().replaceFirst("^.*server", "");
+        String serverIndexStr = toString().replaceFirst("^.*server-", "");
         int serverIndex = Integer.parseInt(serverIndexStr) - 1; // I think the indexes start from 1 and not 0. That's why I did -1.
         String shardId = getAllShards().get(serverIndex / getNumberOfShards());
-        zk.create(shardsPath + "/" + shardId + "/server", serverNodeData, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+        zk.create(shardsPath + "/" + shardId + "/server-", serverNodeData, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
         return serverId;
     }
 
@@ -171,9 +176,34 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         return false;
     }
 
+    /**
+     * watchLeader is used by the atomic-broadcast to get notified when the leader needs to be changed.
+     * @param shardId
+     * @param func
+     */
     @Override
     public void watchLeader(String shardId, Method func) {
-
+        class LeaderWatcher implements Watcher {
+            @Override
+            public void process(WatchedEvent event) {
+                // leader may have changed
+                try {
+                    // set the watcher again (since it's a one-time trigger)
+                    List<String> serversInShard = zk.getChildren(shardsPath + "/" + shardId, new LeaderWatcher());
+                    func.invoke(null);
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to call leader-watcher method for shard " + shardId, e);
+                } catch (InterruptedException | KeeperException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to reset watcher on leader for shard " + shardId, e);
+                }
+            }
+        }
+        // set the initial watch
+        try {
+            List<String> serversInShard = zk.getChildren(shardsPath + "/" + shardId, new LeaderWatcher());
+        } catch (KeeperException | InterruptedException e) {
+            LOGGER.log(Level.SEVERE, "Failed to set watcher on leader for shard " + shardId, e);
+        }
     }
 
     @Override
@@ -201,7 +231,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         }
         // Create shard nodes ("/shards/:shardId")
         for (int i=0; i<getNumberOfShards(); i++){
-            zk.create(shardsPath + "/shard", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
+            zk.create(shardsPath + "/shard-"+ i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         }
     }
 }
