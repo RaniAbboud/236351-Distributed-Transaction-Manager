@@ -100,9 +100,9 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
 
     private List<String> getServersInShard(String shardId) throws InterruptedException, KeeperException {
         final String shardPath = shardsPath + "/" + shardId;
-        List<String> list = zk.getChildren(shardPath, null); // we don't need a watch here so watcher=null
-        Collections.sort(list);
-        return list;
+        List<String> serversInShard = zk.getChildren(shardPath, null); // we don't need a watch here so watcher=null
+        Collections.sort(serversInShard);
+        return serversInShard;
     }
 
     /**
@@ -113,7 +113,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
      */
     private String getShardForServer(String serverId) throws InterruptedException, KeeperException {
         String serverIndexStr = serverId.replaceFirst("^.*server-", "");
-        int serverIndex = Integer.parseInt(serverIndexStr) - 1; // I think the indexes start from 1 and not 0. That's why -1.
+        int serverIndex = Integer.parseInt(serverIndexStr); // The indexes start from 0
         return getAllShards().get(serverIndex / getNumberOfShardsEnvVar());
     }
 
@@ -130,6 +130,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     public String registerServer(String address) throws InterruptedException, KeeperException {
         NodeData serverNodeData = new NodeData(address);
         String serverId = zk.create(serversPath + "/server-", SerializationUtils.serialize(serverNodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+        serverId = serverId.replaceFirst("^.*server-", "server-");
         this.serverId = serverId;
         // Register to /shards/:shardId/
         String shardId = getShardForServer(serverId);
@@ -335,9 +336,23 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         if (stat == null) {
             zk.create(shardsPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         }
+        // Create barriers path ("/barriers")
+        stat = zk.exists(barriersPath, false);
+        if (stat == null) {
+            zk.create(barriersPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        }
+        // Create counter path ("/counter")
+        stat = zk.exists(counterPath, false);
+        if (stat == null) {
+            zk.create(counterPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        }
         // Create shard nodes ("/shards/:shardId")
         for (int i = 0; i < getNumberOfShardsEnvVar(); i++) {
-            zk.create(shardsPath + "/shard-" + i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            try {
+                zk.create(shardsPath + "/shard-" + i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            } catch (KeeperException.NodeExistsException e) {
+                LOGGER.log(Level.FINEST, "Not creating shard node. Node already exists. ShardId=shard-"+i);
+            }
         }
     }
 
