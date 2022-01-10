@@ -10,8 +10,9 @@ public interface ZooKeeperClient {
     void leaveBarrier(String path, String[] shards) throws InterruptedException, KeeperException;
     String getResponsibleShard(String address) throws InterruptedException, KeeperException;
     String getShardLeader(String shardId) throws InterruptedException, KeeperException;
-    boolean atomicCommitWait(String path, boolean myVote, String[] shards);
+    boolean atomicCommitWait(String path, boolean vote, String[] shards) throws InterruptedException, KeeperException;
     void watchLeader(String shardId, Method func);
     int getTimestamp();
     void setupInitialStructures() throws InterruptedException, KeeperException;
+    String getServerAddress(String serverId) throws InterruptedException, KeeperException;
 }
