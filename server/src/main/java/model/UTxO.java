@@ -1,7 +1,11 @@
 package model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class UTxO {
+    @JsonProperty("transaction_id")
     private int transactionId;
+    @JsonProperty("target_address")
     private String targetAddress;
 
     public int getTransactionId() {

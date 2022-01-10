@@ -1,13 +1,18 @@
 package model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Random;
 
 public class Transaction {
     private static Random rand = new Random(); // to generate random ids
 
     private int id;
+    @JsonProperty("source_address")
     private String sourceAddress;
+    @JsonProperty("inputs")
     private UTxO[] inputs;
+    @JsonProperty("outputs")
     private Transfer[] outputs;
     private int timestamp; // we will get this one from ZooKeeper
 

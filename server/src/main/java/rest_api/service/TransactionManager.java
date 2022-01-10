@@ -13,11 +13,19 @@ public class TransactionManager {
         return;
     }
 
-    public List<Transaction> getAllTransactionsForUser(String id) {
+    public void sendCoins(String sourceAddress, String targetAddress, int coins) {
+        return;
+    }
+
+    public List<UTxO> getAllUtxosForUser(String address) {
         return null;
     }
 
-    public List<Transaction> getAllTransactions() {
+    public List<Transaction> getAllTransactionsForUser(String address, int limit) {
+        return null;
+    }
+
+    public List<Transaction> getAllTransactions(int limit) {
         return null;
     }
 }

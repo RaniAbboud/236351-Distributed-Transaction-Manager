@@ -1,8 +1,13 @@
 package model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class Transfer {
+    @JsonProperty("source_address")
     private String sourceAddress; // todo: remove? it might be useful when sending Transfer objects to other shards
+    @JsonProperty("target_address")
     private String targetAddress;
+    @JsonProperty("coins")
     private int coins;
 
     public String getSourceAddress() {
