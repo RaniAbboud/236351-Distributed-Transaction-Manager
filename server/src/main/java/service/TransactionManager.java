@@ -1,4 +1,4 @@
-package rest_api.service;
+package service;
 
 import model.Transaction;
 import model.Transfer;

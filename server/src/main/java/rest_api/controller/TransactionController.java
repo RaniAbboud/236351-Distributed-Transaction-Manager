@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import model.Transaction;
 import model.UTxO;
 import org.springframework.web.bind.annotation.*;
-import rest_api.service.TransactionManager;
+import service.TransactionManager;
 
 import java.util.List;
 
