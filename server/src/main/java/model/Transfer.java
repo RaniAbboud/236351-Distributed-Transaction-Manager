@@ -2,6 +2,10 @@ package model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.persistence.Entity;
+import javax.persistence.Id;
+
+@Entity
 public class Transfer {
     @JsonProperty("source_address")
     private String sourceAddress; // todo: remove? it might be useful when sending Transfer objects to other shards
@@ -9,6 +13,8 @@ public class Transfer {
     private String targetAddress;
     @JsonProperty("coins")
     private int coins;
+    @Id
+    private int id;
 
     public String getSourceAddress() {
         return sourceAddress;
@@ -32,5 +38,13 @@ public class Transfer {
 
     public void setCoins(int coins) {
         this.coins = coins;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public int getId() {
+        return id;
     }
 }

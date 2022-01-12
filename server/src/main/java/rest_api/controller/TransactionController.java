@@ -3,6 +3,7 @@ package rest_api.controller;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import model.Transaction;
 import model.UTxO;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.web.bind.annotation.*;
 import service.TransactionManager;
 
@@ -12,6 +13,7 @@ import java.util.List;
  * Controller for REST API endpoints
  */
 @RestController
+@EntityScan("model")
 public class TransactionController {
     private final TransactionManager transactionManager = new TransactionManager();
     private static final String limitParamDefault = "100000";
@@ -31,9 +33,9 @@ public class TransactionController {
      * @param transactions
      */
     @PostMapping("/transactions")
-    public void createTransaction(@RequestBody Transaction[] transactions) {
-        if (transactions.length == 1) {
-            Transaction transaction = transactions[0];
+    public void createTransaction(@RequestBody List<Transaction> transactions) {
+        if (transactions.size() == 1) {
+            Transaction transaction = transactions.get(0);
             transactionManager.createTransaction(transaction.getSourceAddress(), transaction.getInputs(), transaction.getOutputs());
         }
     }
