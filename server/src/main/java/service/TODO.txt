@@ -1,0 +1,297 @@
+
+/* Model */
+Transfer:
+    targetAddress : bit[128]
+    coins         : bit[64]
+
+UTxO:
+    transactionId : bit[128]
+    sourceAddress : bit[128]
+
+Transaction:
+    timestamp     : bit[64]
+    transactionId : bit[128]
+    inputs        : UTxO[]
+    outputs       : Transfer[]
+
+transactionId:
+    A hash of the inputs and outputs arrays
+    See MD5 maybe
+
+To verify Transaction:
+    1. All UTxO's are from valid transactions
+    2. Each UTxO matches a transfer in the corresponding transaction
+    3. All UTxO's are from same sourceAddress
+    4. Each UTxO is unused
+    5. Each transfer is to a different targetAddress
+    6. Sum of coins on inputs equals sum of coins on outputs
+
+To process a single transaction:
+    0. If already processed: - Need to check in db
+           return the processing response along with an ALREADY_PROCESSED flag.
+    1. Verify it can be processed:
+           if not, return a response with INVALID flag - maybe specify exactly why.
+    2. Move each input UTxO to the "used UTxOs"
+    3. Add the transaction to "transactions pool"
+    4. Add Transfers in his shard to the pool of "unused UTxOs"
+    5. Send transaction and transfers to the relevant shards (other than my shard) and wait until it is received by them.
+    6. Return a response of the transaction processing with SUBMITTED flag.
+
+
+/* How to Handle Requests */
+Functions are inside TransactionManager, called from REST server or another server using gRPC.
+  1. Regular Transactions:
+       - Called with (UTxO[] inputs, Transfer[] outputs, bit[64] reqId)
+       - Check if I am responsible for the UTxOs' sourceAddress, if not:
+           Call the same function on a relevant server from the relevant shard and return the response
+           If that server fails: Retry until one succeeds
+       - Create a "Transaction" object
+           - Compute the transactionId for the request
+       - Create an entry for the transaction in the "pending requests" map and add the origServerId and pendingReqId (counter)
+       - Use atomic broadcast to broadcast the <"Transaction", reqId, origServerId, pendingReqId>" to my shard
+       - Wait until the transaction is finished by waiting on the "pending requests" entry
+            // FIXME: Do it correctly in a while loop
+       - Pop the response from the "pending requests" entry
+       - Return response (decision and timestamp)
+  2. Coin Transfers
+       - Called with (bit[128] sourceAddress, bit[128] targetAddress, bit[64] coins, bit[64] reqId)
+       - Check if I am responsible for the sourceAddress, if not:
+           Call the same function on a relevant server from the relevant shard and return the response
+           If that server fails: Retry until one succeeds
+       - Check if it can create a "Transaction" object,
+           - If not, return response that couldn't do it
+           - Compute the transactionId for the request
+       - Create a "CoinTransfer" object, it contains:
+           - sourceAddress, targetAddress and coins
+           - The generated "Transaction"
+       - Create an entry for the "coin transfer" in the "pending requests" map and add the origServerId and pendingReqId (counter)
+       - Use atomic broadcast to broadcast the <"CoinTransfer", reqId, origServerId, pendingReqId> to my shard:
+       - Wait until the transaction is finished by waiting on the "pending requests" entry
+       - Pop the response from the "pending requests" entry
+       - Return response (decision and timestamp)
+  3. List UTxOs
+       - Called with (bit[128] sourceAddress)
+       - Check if I am responsible for the sourceAddress, if not:
+           Call the same function on a relevant server from the relevant shard and return the response
+           If that server fails: Retry until one succeeds
+       - Go over the "unused UTxO" whose source is `sourceAddress` and add them to the response along
+         with the relevant transactions
+       - Return response
+  4. List Transaction History
+       - Called with (bit[128] sourceAddress, bit[64] limit)
+       - Check if I am responsible for the sourceAddress, if not:
+           Call the same function on a relevant server from the relevant shard and return the response
+           If that server fails: Retry until one succeeds
+       - Go over the "transactions pool" and add every transaction if `sourceAddress` is the sourceAddress
+         of a UTxO in them or is the targetAddress in a Transfer.
+         Take up to "limit" transactions from it if specified
+       - Return response
+  5. List Entire History
+       - Called with (bit[64] limit, bit[64] reqId)
+       - Create an entry in the "pending requests" map and add the origServerId and pendingReqId (counter)
+       - Create a "ListHistory" object that contains the given limit
+       - Use atomic broadcast to broadcast the <"ListHistory", reqId, origServerId, pendingReqId> to all shards
+       - Wait until the transaction is finished by waiting on the "pending requests" entry
+       - Pop the response from the "pending requests" entry
+       - Return response
+  6. Submit Atomic List
+       - Called with (Pair<UTxO[], Transfer[]>[] atomic_lst, bit[64] reqId)
+       - Check if I am responsible for the UTxOs' sourceAddress of at least one transaction in the atomic_lst, if not:
+           Call the same function on a relevant server from the relevant shard and return the response
+           If that server fails: Retry until one succeeds
+       - Create an "AtomicTxList" object (list of Transaction) with the transactions in the atomic list
+           - Compute the transactionId for each of the transactions
+       - Check if the atomic_lst indeed contains independent transactions
+           If not, respond with error
+       - Create an entry in the "pending requests" map and add the origServerId and pendingReqId (counter)
+       - Compute all the relevant shards responsible for any transaction in the list
+       - Use atomic broadcast to broadcast the <"AtomicTxList", reqId, origServerId, pendingReqId>" to all the relevant shards
+       - Wait until the transaction is finished by waiting on the "pending requests" entry
+       - Pop the response from the "pending requests" entry
+       - Return response (decision and timestamp)
+
+
+/* Handle Requests Received in the AtomicBroadcast */
+Functions are inside TransactionManager, called from the AtomicBroadcast thread.
+  1. Regular Transactions:
+       - Called with a "Transaction" object, reqId, origServerId and pendingReqId
+       - Check if <reqId, transactionId> already exists in the "done transactions" pool (for same transaction)
+            Yes: See if I am origServerId, if yes:
+                - Get the response from the original "done transactions" along with an ALREADY_EXECUTED flag.
+                - Add the response to the entry pendingReqId in "pending requests" and notify the waiter
+            No:
+                - Run "process a single transaction" on this transaction and get a response
+                - If the response is SUBMITTED:
+                    Create a <reqId, transactionId> entry in the "done transactions" pool
+                - If I am origServerId
+                    Add the response to the entry pendingReqId in "pending requests" and notify the waiter
+  2. Coin Transfers:
+       - Called with a "CoinTransfer" object, reqId, origServerId and pendingReqId
+       - Same as "Regular Transactions", but with:
+            - The pool is "done coin transfers"
+            - The key to pool is <reqId, sourceAddress, targetAddress, coins>
+  3. List History
+       - Called with a "ListHistory" object, reqId, origServerId and pendingReqId
+       - Enter barrier with all active servers in the system with the identifier "ListHistory-origServerId-pendingReqId"
+            - If while waiting for others to join, origServerId dies then stop waiting for others.
+              It might be the case that not all shards are going to enter the barrier
+       - If I am origServerId:
+            - Foreach Shard in the system:
+                Choose a server and call the rpc getHistory(limit)
+                  Retry if the server fails, no need to call rpc for my shard
+                  Add the response to the "pending requests" for that shard
+       - Leave barrier
+            - Even if the enter FAILED, we need to remove ourselves from barrier because others might have entered it
+            // FIXME: Need to make sure barrier handles server faults in enter/leave and ignores them
+                Also, make sure it cleans up afterwards even after failures
+       - See if I am origServerId
+            Sort and limit the responses in the entry pendingReqId in "pending requests" and notify the waiter
+  4. Atomic Transaction List
+       - Called with an "AtomicTxList" object, reqId, origServerId and pendingReqId
+       - Check if <reqId, transactionId list> already exists in the "done atomic transactions" pool (for same transactions)
+            Yes: See if I am origServerId, if yes:
+                - Get the response from the original "done atomic transactions" along with an ALREADY_EXECUTED flag.
+                - Add the response to the entry pendingReqId in "pending requests" and notify the waiter
+            No:
+                - Compute the list of shards that are responsible for any transaction in the list
+                - Enter barrier with all active relevant servers with the identifier "AtomicTxList-origServerId-pendingReqId"
+                   - If while waiting for others to join origServerId dies then stop waiting for others.
+                     It might be the case that not all shards are going to enter the barrier
+                - If I am origServerId:
+                    Foreach relevant shard:
+                       Choose a server and check if they can process the atomic commit
+                       Retry another server if fails
+                    If all shards can process it:
+                        Get a timestamp, create a commit decision with it and add ALL_COMMIT with the timestamp
+                    Else:
+                        Add a decision ALL_ABORT
+                - Else:
+                    Wait until there is a decision or that the origServerId died
+                    When origServerId dies - First check if there was a decision to prevent races
+                - Leave barrier
+                    - Even if the enter FAILED, we need to remove ourselves from barrier because others might have entered it
+                    // FIXME: Need to make sure it handles server faults and ignores them
+                          Also, make sure it cleans up afterwards even after failures
+                - If response is ALL_COMMIT:
+                     - Foreach transaction I am responsible for:
+                        Add the timestamp from the commit process to the transaction
+                        Run "process a single transaction" on this transaction and get a response
+                        It must return with SUBMITTED
+                     - Create a <reqId, transactionId list> entry in the "done atomic transactions" pool
+                - If I am origServerId
+                    Add the response to the entry pendingReqId in "pending requests" and notify the waiter
+
+
+/* Handle Requests Received from gRPC */
+Functions are inside TransactionManager, called from the gRPC thread from another server.
+  1. All the functions that can be called from the REST server can be called from another server using gRPC.
+        Other than "List Entire History", which anyone can process.
+  2. Add Submitted Transaction
+        Called when a server submitted a transaction my shard is a target of.
+        - Called with a "Transaction" object
+        - If haven't received it already:
+           - Add the transaction to "transactions pool"
+           - Add relevant UTxOs to the pool of "unused UTxOs"
+  3. Get History
+        Called when a server needs our history
+        Assumes that we should be inside a barrier right now, so should be able to make progress always
+        - Called with a `limit`
+        - Returns a list of the first `limit` transactions we are responsible for
+  4. Can Process Atomic List
+        Called when a server is performing Two Phase Commit
+        - Called with an "AtomicTxList" object
+           - Checks if each transaction I am responsible for in the list can be processed successfully.
+
+
+/* Communication Summary */
+  1. Forward Request to Relevant Shard
+      - Needed in: Transaction Manager in the matching function
+      - What it does: Calls the relevant function of the transaction manager at another server and waits for response
+         - Functions: (All but "List Entire History")
+             - Regular Transactions
+             - Coin Transfers
+             - List UTxOs
+             - List Transaction History
+             - Submit Atomic List
+      - Needed by: The server that received the request
+      - Needed from: A server from the relevant shard
+      - If sender dies in the middle:
+        - Not a problem, same as a regular REST call where the client fails - can continue
+      - If receiver dies in the middle:
+        - Need to retry and call it on another server until one succeeds
+        - However, if we call it more than one time then we might cause an ALREADY_EXECUTED response
+            - FIXME:
+                Can be hard to figure out if we caused it or it is really ALREADY_EXECUTED because it
+                was retried by client or because we retried it.
+                We can just return whatever response returns irregardless.
+      - Duplicates: Will be handled as any regular duplicate request if needed
+      => No need for reliable broadcast, can just call the correct rpc in the server and wait for either response or failure
+         Need to retry upon failure with another server until one succeeds.
+  2. Broadcast Processed Transaction
+      - Needed in: "process a single transaction"
+      - What it does: Calls "Add Submitted Transaction" rpc and return when done adding it to db.
+      - Needed by: Each server in the shard processing the transaction will call it on the same transaction
+      - Needed from: Each available servers in the relevant shards of the outputs other than my shard
+      - If sender dies in the middle:
+        - Not a problem, it is called by every server in the shard, so at least one will succeed.
+      - If receiver dies in the middle:
+        - Not a problem, he won't need it.
+      - Duplicates: Inside "Add Submitted Transaction" it will check that it hasn't received it already.
+      => No need for reliable broadcast, can just call the rpc in each relevant server and wait until all return.
+  3. Get History
+      - Needed in: "List Entire History" handling in Transaction Manager
+      - What it does: Gets the entire transaction history from a server currently inside a barrier - up to limit
+      - Needed by: A server processing "List Entire History"
+      - Needed from: A server from each shard - that isn't the requester's shard
+      - If sender dies in the middle:
+        - Not a problem at all, not needed anymore
+      - If receiver dies in the middle:
+        - Need to call another server from the same shard - shouldn't be a problem
+      - Duplicates: Not relevant
+      => Can just go over the shards, choose a server from each one and ask for history using a simple rpc.
+         If one fails, try another server from same shard.
+  4. Can Process Atomic List
+      - Needed in: "Atomic Transaction List"
+      - What it does: Checks if server can process his transactions in list
+      - Needed by: A server processing "Atomic Transaction List"
+      - Needed from: A server from each shard - that isn't the requester's shard
+      - If sender dies in the middle:
+        - Not a problem, will be handled correctly by others
+      - If receiver dies in the middle:
+        - Need to call another server from the same shard - shouldn't be a problem
+      - Duplicates: Not relevant
+      => Can just go over the shards, choose a server from each one and ask if can process using a simple rpc
+         If one fails, try another server from same shard.
+  5. Atomic Broadcast
+      - Needed in: Transaction manager when it needs to broadcast a "Transaction", "CoinTransfer", "ListHistory" or "AtomicTxList"
+      - What it does:
+          - It gets an object to be atomically broadcast to all servers in a specific list of shards
+          - The objects are: "Transaction", "CoinTransfer", "ListHistory" or "AtomicTxList"
+          - Each one has 3 other fields: reqId, origServerId and pendingReqId to be passed as-is.
+          - When broadcasting a "Transaction" or a "CoinTransfer", just before committing, we need to take a timestamp
+            from Zookeeper and append it to the objects.
+      - Needed by: The Transaction Manager processing the requests
+      - Needed from: Each server in the list of needed shards
+      - If sender dies in middle:
+        - If single shard then not a problem
+        - If multiple shards then barrier code handles failure of sender
+      - If receiver dies in the middle:
+        - Problem: We need it to pass MultiPaxos in all relevant shards - need to retry
+      - Duplicates:
+        - Problem: We don't want transactions with same <origServerId, pendingReqId> to arrive more than once.
+      => When sending a new request:
+        - To send:
+            - If to single shard:
+                - Propose it to leader and wait until he commits it using MultiPaxos
+                - If leader fails: Retry another leader
+            - If more than one shard:
+                - Go over the SORTED list of relevant shards: (sorting needed to avoid deadlocks)
+                    - Propose it to the leader of the shard and wait until he commits it using MultiPaxos
+                    - If leader fails: Retry another leader
+        - Leader:
+            - Learner service will save the <origServerId, pendingReqId> along with each request.
+            - If Proposer is trying to propose an already learned request - he just returns.
+            - Otherwise he proposes it as usual and returns when done.
+            - Right before commit, he might need to take a timestamp (depending on type) and attach it to request.
+        - Interface should be a non-blocking send, and a thread should get the receive and call the relevant function
+          in the Transaction Manager.
