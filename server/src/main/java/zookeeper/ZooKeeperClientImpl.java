@@ -3,8 +3,8 @@ package zookeeper;
 import com.google.common.hash.Hashing;
 import constants.Constants;
 import javassist.bytecode.stackmap.TypeData;
-import javassist.expr.NewArray;
 import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
 import org.springframework.util.SerializationUtils;
 
@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,7 +20,7 @@ import java.util.logging.Logger;
 
 class NodeData implements Serializable {
     private String address;
-    private Boolean vote = null;
+    private Boolean decision = null;
 
     public String getAddress() {
         return address;
@@ -31,16 +30,16 @@ class NodeData implements Serializable {
         this.address = address;
     }
 
-    public Boolean getVote() {
-        return vote;
+    public Boolean getDecision() {
+        return decision;
     }
 
-    public void setVote(boolean vote) {
-        this.vote = vote;
+    public void setDecision(boolean decision) {
+        this.decision = decision;
     }
 
-    public NodeData(boolean vote) {
-        this.setVote(vote);
+    public NodeData(boolean decision) {
+        this.decision = decision;
     }
 
     public NodeData(String address) {
@@ -50,15 +49,13 @@ class NodeData implements Serializable {
 
 public class ZooKeeperClientImpl implements ZooKeeperClient {
     private static final Logger LOGGER = Logger.getLogger(TypeData.ClassName.class.getName());
-    private ZooKeeper zk;
+    private final ZooKeeper zk;
     private String serverId;
-    private HashMap<String, Integer> locks = new HashMap<>();
-    final private int sessionTimeout = 5000;
+    private final HashMap<String, Integer> locks = new HashMap<>();
     final private String shardsPath = "/shards";
     final private String serversPath = "/servers";
     final private String barriersPath = "/barriers";
     final private String counterPath = "/counter";
-    final private String atomicTransactionsPath = "/atomic-transactions";
 
     /**
      * Constructor.
@@ -67,16 +64,19 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
      * @throws IOException
      */
     public ZooKeeperClientImpl(String zkConnection) throws IOException {
+        int sessionTimeout = 5000;
         this.zk = new ZooKeeper(zkConnection, sessionTimeout, null); // todo: watcher?
     }
 
-    private Watcher createWatcher(String id) {
+    private Watcher createWatcher(String id, Watcher.Event.EventType eventType) {
         class IdWatcher implements Watcher {
             @Override
             public void process(WatchedEvent event) {
                 Integer mutex = locks.get(id);
                 synchronized (mutex) {
-                    mutex.notify();
+                    if (eventType == null || eventType == event.getType()){
+                        mutex.notify();
+                    }
                 }
             }
         }
@@ -138,11 +138,39 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         return serverId;
     }
 
+    /**
+     * Wait for a decision for the atomic-list operation. "Are we doing it or not?"
+     * @param barrierId The barrier ID for the barrier to watch the atomic-transactions-list's decision.
+     * @param initiatorServerId The server ID of the server that is responsible for the atomic list request.
+     *                         If this server fails, we will exit the wait.
+     */
+    @Override
+    public void waitForDecision(String barrierId, String initiatorServerId) throws Exception {
+        String watchId = barrierId + "-decision"; // setting a different watchId than the one we're using for the barrier itself.
+        this.locks.put(watchId, 1); // create a mutex for this watch
+        watchServer(initiatorServerId, watchId);
+        Stat stat = zk.exists(barriersPath + "/" + barrierId, createWatcher(watchId, Watcher.Event.EventType.NodeDataChanged));
+        if (stat == null) {
+            throw new Exception("Failed to set watch on barrier node data: node doesn't exist.");
+        }
+    }
+
+    /**
+     * Sets the decision for the given barrier. The "other" servers will be using the waitForDecision method to wait until
+     * the decision is set.
+     * @param barrierId: The barrier ID for the barrier corresponding to the relevant atomic-transactions-list operation
+     * @param decision: The decision (boolean).
+     * @throws InterruptedException
+     * @throws KeeperException
+     */
+    @Override
+    public void setDecision(String barrierId, boolean decision) throws InterruptedException, KeeperException {
+        zk.setData(barriersPath + "/" + barrierId, SerializationUtils.serialize(new NodeData(decision)), -1);
+    }
+
     @Override
     public void enterBarrier(String barrierId, String[] shards) throws KeeperException, InterruptedException {
         String barrierPath = barriersPath + "/" + barrierId;
-//        Stat s = zk.exists(barrierPath, false);
-//        if (s == null) {
         this.locks.put(barrierId, 1); // create a mutex for this barrier
         try {
             zk.create(barrierPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
@@ -150,13 +178,12 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
             LOGGER.log(Level.FINEST, "Not creating barrier node. Barrier node already exists. BarrierId=" + barrierId);
             // already exists, ignore error.
         }
-//        }
         // create node representing the server as a child of the barrier node
         zk.create(barrierPath + "/" + serverId, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
         while (true) {
             synchronized (locks.get(barrierId)) {
-                List<String> list = zk.getChildren(barrierPath, createWatcher(barrierId)); // setting a watcher for this specific barrierId
-                // get the number of server participating in the barrier
+                List<String> list = zk.getChildren(barrierPath, createWatcher(barrierId, Watcher.Event.EventType.NodeChildrenChanged)); // setting a watcher for this specific barrierId
+                // get the number of servers participating in the barrier
                 int serversCount = 0;
                 for (String shard : shards) {
                     serversCount += getServersInShard(shard).size();
@@ -180,7 +207,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         }
         while (true) {
             synchronized (locks.get(barrierId)) {
-                List<String> list = zk.getChildren(barriersPath + "/" + barrierId, createWatcher(barrierId));
+                List<String> list = zk.getChildren(barriersPath + "/" + barrierId, createWatcher(barrierId, Watcher.Event.EventType.NodeChildrenChanged));
                 if (list.size() > 0) {
                     locks.get(barrierId).wait();
                 } else {
@@ -225,40 +252,48 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         return Collections.min(shardServers);
     }
 
-    @Override
-    public boolean atomicCommitWait(String atomicTxnListId, boolean vote, String[] shards) throws InterruptedException, KeeperException {
-        String myShardId = getShardForServer(serverId);
-        String atomicTxnListPath = atomicTransactionsPath + "/" + atomicTxnListId;
-        // create node representing this atomic transactions list
-        try {
-            zk.create(atomicTxnListPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
-        } catch (KeeperException.NodeExistsException e) {
-            LOGGER.log(Level.FINEST, "Not creating atomic list node. Atomic list node already exists. Atomic transaction list id =" + atomicTxnListId);
-            // already exists, ignore error.
-        }
-        // create node representing my shard's vote for this atomic list
-        try {
-            NodeData nodeData = new NodeData(vote);
-            zk.create(atomicTxnListPath + "/" + myShardId, SerializationUtils.serialize(nodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
-        } catch (KeeperException.NodeExistsException e) {
-            LOGGER.log(Level.FINEST, "Not creating shard node for this atomic list. Shard node already exists. Atomic transaction list id =" + atomicTxnListId);
-            // already exists, ignore error.
-        }
-        /* Enter Barrier */
-        enterBarrier(atomicTxnListId, shards);
+//    @Override
+//    public boolean atomicCommitWait(String atomicTxnListId, boolean vote, String[] shards) throws InterruptedException, KeeperException {
+//        String myShardId = getShardForServer(serverId);
+//        String atomicTransactionsPath = "/atomic-transactions";
+//        String atomicTxnListPath = atomicTransactionsPath + "/" + atomicTxnListId;
+//        // create node representing this atomic transactions list
+//        try {
+//            zk.create(atomicTxnListPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
+//        } catch (KeeperException.NodeExistsException e) {
+//            LOGGER.log(Level.FINEST, "Not creating atomic list node. Atomic list node already exists. Atomic transaction list id =" + atomicTxnListId);
+//            // already exists, ignore error.
+//        }
+//        // create node representing my shard's vote for this atomic list
+//        try {
+//            NodeData nodeData = new NodeData();
+//            zk.create(atomicTxnListPath + "/" + myShardId, SerializationUtils.serialize(nodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
+//        } catch (KeeperException.NodeExistsException e) {
+//            LOGGER.log(Level.FINEST, "Not creating shard node for this atomic list. Shard node already exists. Atomic transaction list id =" + atomicTxnListId);
+//            // already exists, ignore error.
+//        }
+//        /* Enter Barrier */
+//        enterBarrier(atomicTxnListId, shards);
+//
+//        List<String> votingShards = zk.getChildren(atomicTxnListPath, null);
+//        List<Boolean> votes = new ArrayList<>();
+//        for (String shard : votingShards) {
+//            // read shard vote
+//            byte[] data = zk.getData(atomicTxnListPath + "/" + shard, false, null);
+//            NodeData nodeData = (NodeData) SerializationUtils.deserialize(data);
+//            assert nodeData != null;
+//            votes.add(nodeData.getDecision());
+//        }
+//        /* Leave Barrier */
+//        leaveBarrier(atomicTxnListId, shards);
+//        return votes.stream().allMatch(val -> val);
+//    }
 
-        List<String> votingShards = zk.getChildren(atomicTxnListPath, null);
-        List<Boolean> votes = new ArrayList<>();
-        for (String shard : votingShards) {
-            // read shard vote
-            byte[] data = zk.getData(atomicTxnListPath + "/" + shard, false, null);
-            NodeData nodeData = (NodeData) SerializationUtils.deserialize(data);
-            assert nodeData != null;
-            votes.add(nodeData.getVote());
+    private void watchServer(String serverId, String watchId) throws Exception {
+        Stat stat = zk.exists(serversPath + "/" + serverId, createWatcher(watchId, Watcher.Event.EventType.NodeDeleted));
+        if (stat == null) {
+            throw new Exception("Failed to set watch on server: server is probably dead.");
         }
-        /* Leave Barrier */
-        leaveBarrier(atomicTxnListId, shards);
-        return votes.stream().allMatch(val -> val);
     }
 
     /**
@@ -318,34 +353,25 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         return index;
     }
 
+    private void createNodeIfNotExists(String path, byte[] data, List<ACL> acl, CreateMode createMode) throws InterruptedException, KeeperException {
+        Stat stat = zk.exists(path, false);
+        if (stat == null) {
+            zk.create(path, data, acl, createMode);
+        }
+    }
+
     @Override
     public void setupInitialStructures() throws InterruptedException, KeeperException {
         // Create root path ("/")
-        final String rootPath = "/";
-        Stat stat = zk.exists(rootPath, false);
-        if (stat == null) {
-            zk.create(rootPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
+        createNodeIfNotExists("/", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         // Create servers path ("/servers")
-        stat = zk.exists(serversPath, false);
-        if (stat == null) {
-            zk.create(serversPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
+        createNodeIfNotExists(serversPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         // Create shards path ("/shards")
-        stat = zk.exists(shardsPath, false);
-        if (stat == null) {
-            zk.create(shardsPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
+        createNodeIfNotExists(shardsPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         // Create barriers path ("/barriers")
-        stat = zk.exists(barriersPath, false);
-        if (stat == null) {
-            zk.create(barriersPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
+        createNodeIfNotExists(barriersPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         // Create counter path ("/counter")
-        stat = zk.exists(counterPath, false);
-        if (stat == null) {
-            zk.create(counterPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        }
+        createNodeIfNotExists(counterPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         // Create shard nodes ("/shards/:shardId")
         for (int i = 0; i < getNumberOfShardsEnvVar(); i++) {
             try {
