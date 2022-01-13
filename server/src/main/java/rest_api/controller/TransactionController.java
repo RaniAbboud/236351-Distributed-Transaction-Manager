@@ -1,13 +1,17 @@
 package rest_api.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import javassist.bytecode.stackmap.TypeData;
 import model.Transaction;
 import model.UTxO;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.web.bind.annotation.*;
 import service.TransactionManager;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Controller for REST API endpoints
@@ -15,7 +19,17 @@ import java.util.List;
 @RestController
 @EntityScan("model")
 public class TransactionController {
-    private final TransactionManager transactionManager = new TransactionManager();
+    private static final Logger LOGGER = Logger.getLogger(TypeData.ClassName.class.getName());
+
+    TransactionController(){
+        try {
+            this.transactionManager = new TransactionManager("");
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE,"Failed to initialize TransactionManager", e);
+        }
+    }
+
+    private TransactionManager transactionManager = null;
     private static final String limitParamDefault = "100000";
 
     @GetMapping("/transactions")

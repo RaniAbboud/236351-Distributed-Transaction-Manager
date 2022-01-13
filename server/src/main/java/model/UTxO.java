@@ -8,17 +8,17 @@ import javax.persistence.Id;
 @Entity
 public class UTxO {
     @JsonProperty("transaction_id")
-    private int transactionId;
+    private String transactionId;
     @JsonProperty("target_address")
     private String targetAddress;
     @Id
     private int id;
 
-    public int getTransactionId() {
+    public String getTransactionId() {
         return transactionId;
     }
 
-    public void setTransactionId(int transactionId) {
+    public void setTransactionId(String transactionId) {
         this.transactionId = transactionId;
     }
 

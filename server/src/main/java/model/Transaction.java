@@ -10,7 +10,7 @@ import java.util.Random;
 
 @Entity
 public class Transaction {
-    private static Random rand = new Random(); // to generate random ids
+    private static final Random rand = new Random(); // to generate random ids
     @Id
     private int id;
     @JsonProperty("source_address") private String sourceAddress;
