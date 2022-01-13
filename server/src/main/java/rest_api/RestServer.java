@@ -1,17 +1,18 @@
 package rest_api;
 
-import java.util.Arrays;
-
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 
+import java.util.Arrays;
+
 @SpringBootApplication
 public class RestServer {
 
     public static void main(String[] args) {
+        org.apache.log4j.BasicConfigurator.configure();
         SpringApplication.run(RestServer.class, args);
     }
 

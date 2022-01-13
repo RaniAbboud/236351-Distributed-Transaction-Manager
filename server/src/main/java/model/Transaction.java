@@ -2,25 +2,33 @@ package model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.OneToMany;
+import java.util.List;
 import java.util.Random;
 
+@Entity
 public class Transaction {
     private static Random rand = new Random(); // to generate random ids
-
+    @Id
     private int id;
-    @JsonProperty("source_address")
-    private String sourceAddress;
-    @JsonProperty("inputs")
-    private UTxO[] inputs;
-    @JsonProperty("outputs")
-    private Transfer[] outputs;
+    @JsonProperty("source_address") private String sourceAddress;
+    @OneToMany
+    @JsonProperty("inputs") private List<UTxO> inputs;
+    @OneToMany
+    @JsonProperty("outputs") private List<Transfer> outputs;
     private int timestamp; // we will get this one from ZooKeeper
 
-    public Transaction(String sourceAddress, UTxO[] inputs, Transfer[] outputs) {
+    public Transaction(String sourceAddress, List<UTxO> inputs, List<Transfer> outputs) {
         this.id = rand.nextInt(Integer.MAX_VALUE); // generate a random id (between 0 and MAXINT)
         this.sourceAddress = sourceAddress;
         this.inputs = inputs;
         this.outputs = outputs;
+    }
+
+    public Transaction() {
+
     }
 
     public int getId() {
@@ -39,19 +47,19 @@ public class Transaction {
         this.sourceAddress = sourceAddress;
     }
 
-    public UTxO[] getInputs() {
+    public List<UTxO> getInputs() {
         return inputs;
     }
 
-    public void setInputs(UTxO[] inputs) {
+    public void setInputs(List<UTxO> inputs) {
         this.inputs = inputs;
     }
 
-    public Transfer[] getOutputs() {
+    public List<Transfer> getOutputs() {
         return outputs;
     }
 
-    public void setOutputs(Transfer[] outputs) {
+    public void setOutputs(List<Transfer> outputs) {
         this.outputs = outputs;
     }
 

@@ -5,11 +5,12 @@ import model.Transfer;
 import model.UTxO;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class TransactionManager {
-    public void createTransaction(String sourceAddress, UTxO[] inputs, Transfer[] outputs) {
+    public void createTransaction(String sourceAddress, List<UTxO> inputs, List<Transfer> outputs) {
         return;
     }
 
@@ -26,6 +27,8 @@ public class TransactionManager {
     }
 
     public List<Transaction> getAllTransactions(int limit) {
-        return null;
+        List<Transaction> transactions = new ArrayList<>();
+        transactions.add(new Transaction("FAKE.IP.ADDRESS", null, null));
+        return transactions;
     }
 }
