@@ -49,7 +49,8 @@ class NodeData implements Serializable {
 
 public class ZooKeeperClientImpl implements ZooKeeperClient {
     private static final Logger LOGGER = Logger.getLogger(TypeData.ClassName.class.getName());
-    private final ZooKeeper zk;
+    private String zkConnection;
+    private ZooKeeper zk;
     private String serverId;
     private final HashMap<String, Integer> locks = new HashMap<>();
     final private String shardsPath = "/shards";
@@ -57,16 +58,13 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     final private String barriersPath = "/barriers";
     final private String counterPath = "/counter";
 
-    /**
-     * Constructor.
-     *
-     * @param zkConnection: comma-separated list of host:port pairs, each corresponding to a ZooKeeper server.
-     * @throws IOException
-     */
-    public ZooKeeperClientImpl(String zkConnection) throws IOException {
-        int sessionTimeout = 5000;
-        this.zk = new ZooKeeper(zkConnection, sessionTimeout, null); // todo: watcher?
+    public ZooKeeperClientImpl(String zkConnection) {
+        this.zkConnection = zkConnection;
     }
+    public ZooKeeperClientImpl() {
+        this(System.getenv(Constants.ENV_ZK_CONNECTION));
+    }
+
 
     private Watcher createWatcher(String id, Watcher.Event.EventType eventType) {
         class IdWatcher implements Watcher {
@@ -115,6 +113,42 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         String serverIndexStr = serverId.replaceFirst("^.*server-", "");
         int serverIndex = Integer.parseInt(serverIndexStr); // The indexes start from 0
         return getAllShards().get(serverIndex / getNumberOfShardsEnvVar());
+    }
+
+    /**
+     * Setup for the Zookeeper
+     * Called first when a server first starts.
+     * Needs to wait until all servers in the system are up and running before returning
+     */
+    @Override
+    public void setup() throws IOException {
+        // FIXME: Need to setup everything here
+
+        // Create Client
+        int sessionTimeout = 5000;
+        this.zk = new ZooKeeper(zkConnection, sessionTimeout, null); // todo: watcher?
+    }
+
+    @Override
+    public void setupInitialStructures() throws InterruptedException, KeeperException {
+        // Create root path ("/")
+        createNodeIfNotExists("/", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // Create servers path ("/servers")
+        createNodeIfNotExists(serversPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // Create shards path ("/shards")
+        createNodeIfNotExists(shardsPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // Create barriers path ("/barriers")
+        createNodeIfNotExists(barriersPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // Create counter path ("/counter")
+        createNodeIfNotExists(counterPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        // Create shard nodes ("/shards/:shardId")
+        for (int i = 0; i < getNumberOfShardsEnvVar(); i++) {
+            try {
+                zk.create(shardsPath + "/shard-" + i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            } catch (KeeperException.NodeExistsException e) {
+                LOGGER.log(Level.FINEST, "Not creating shard node. Node already exists. ShardId=shard-"+i);
+            }
+        }
     }
 
     /**
@@ -360,27 +394,6 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         }
     }
 
-    @Override
-    public void setupInitialStructures() throws InterruptedException, KeeperException {
-        // Create root path ("/")
-        createNodeIfNotExists("/", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        // Create servers path ("/servers")
-        createNodeIfNotExists(serversPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        // Create shards path ("/shards")
-        createNodeIfNotExists(shardsPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        // Create barriers path ("/barriers")
-        createNodeIfNotExists(barriersPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        // Create counter path ("/counter")
-        createNodeIfNotExists(counterPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-        // Create shard nodes ("/shards/:shardId")
-        for (int i = 0; i < getNumberOfShardsEnvVar(); i++) {
-            try {
-                zk.create(shardsPath + "/shard-" + i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-            } catch (KeeperException.NodeExistsException e) {
-                LOGGER.log(Level.FINEST, "Not creating shard node. Node already exists. ShardId=shard-"+i);
-            }
-        }
-    }
 
     @Override
     public String getServerAddress(String serverId) throws InterruptedException, KeeperException {

@@ -2,42 +2,46 @@ package model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
+import javax.persistence.Embeddable;
 import javax.persistence.OneToMany;
+import javax.xml.bind.DatatypeConverter;
+import java.security.NoSuchAlgorithmException;
+import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.security.MessageDigest;
 
-@Entity
+@Embeddable
 public class Transaction {
-    private static final Random rand = new Random(); // to generate random ids
-    @Id
-    private int id;
-    @JsonProperty("source_address") private String sourceAddress;
+
+    @JsonProperty("transaction_id")
+    private String transactionId;
+    @JsonProperty("timestamp")
+    private long timestamp;
+    @JsonProperty("source_address")
+    private String sourceAddress;
     @OneToMany
-    @JsonProperty("inputs") private List<UTxO> inputs;
+    @JsonProperty("inputs")
+    private List<UTxO> inputs;
     @OneToMany
-    @JsonProperty("outputs") private List<Transfer> outputs;
-    private int timestamp; // we will get this one from ZooKeeper
+    @JsonProperty("outputs")
+    private List<Transfer> outputs;
 
-    public Transaction(String sourceAddress, List<UTxO> inputs, List<Transfer> outputs) {
-        this.id = rand.nextInt(Integer.MAX_VALUE); // generate a random id (between 0 and MAXINT)
-        this.sourceAddress = sourceAddress;
-        this.inputs = inputs;
-        this.outputs = outputs;
+    public Transaction(String transactionId, long timestamp, String sourceAddress, List<UTxO> inputs, List<Transfer> outputs) {
+        this.timestamp = timestamp;
+        this.inputs = (inputs != null) ? inputs : Collections.emptyList();
+        this.outputs = (outputs != null) ? outputs : Collections.emptyList();
+        this.sourceAddress = (sourceAddress != null) ? sourceAddress : computeSourceAddress(this.inputs);
+        this.transactionId = (transactionId != null) ? transactionId : computeTransactionId(this.sourceAddress, this.inputs, this.outputs);
     }
 
-    public Transaction() {
-
+    public Transaction(String transactionId, List<UTxO> inputs, List<Transfer> outputs) {
+        this(transactionId, -1, null, inputs, outputs);
     }
 
-    public int getId() {
-        return id;
+    public Transaction(List<UTxO> inputs, List<Transfer> outputs) {
+        this(null, inputs, outputs);
     }
 
-    public void setId(int id) {
-        this.id = id;
-    }
 
     public String getSourceAddress() {
         return sourceAddress;
@@ -63,11 +67,46 @@ public class Transaction {
         this.outputs = outputs;
     }
 
-    public int getTimestamp() {
-        return timestamp;
+    public long getTimestamp() { return timestamp; }
+
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+
+    public String getTransactionId() { return transactionId; }
+
+    public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
+
+    /** transactionId is an MD5 hash of sourceAddress, inputs and outputs */
+    public static String computeTransactionId(String sourceAddress, List<UTxO> inputs, List<Transfer> outputs) {
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("MD5");
+            md.update(sourceAddress.getBytes());
+            for (UTxO in : inputs) {
+                md.update(in.getAddress().getBytes());
+                md.update(in.getTransactionId().getBytes());
+            }
+            for (Transfer out : outputs) {
+                md.update(out.getAddress().getBytes());
+                md.update(Long.toUnsignedString(out.getCoins()).getBytes());
+            }
+            return DatatypeConverter.printHexBinary(md.digest()).toUpperCase();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
-    public void setTimestamp(int timestamp) {
-        this.timestamp = timestamp;
+    /** Returns the sourceAddress of all UTxO's if unique and existing, otherwise null */
+    public static String computeSourceAddress(List<UTxO> inputs) {
+        String temp = null;
+        for (UTxO utxo : inputs) {
+            if (temp == null) {
+                temp = utxo.getAddress();
+            } else if (!temp.equals(utxo.getAddress())) {
+                return null;
+            }
+        }
+        return temp;
     }
+
 }

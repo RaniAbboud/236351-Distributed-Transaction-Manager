@@ -41,6 +41,7 @@ public class ZooKeeperClientImplTest {
         ZooKeeperClient zk = null;
         try {
             zk = new ZooKeeperClientImpl("localhost:2181");
+            zk.setup();
         } catch (IOException e) {
             Assertions.fail(e);
         }

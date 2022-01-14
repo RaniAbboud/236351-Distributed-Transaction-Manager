@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "grpcservice/grpcservice_messages.proto";
+
+option java_multiple_files = true;
+option java_package = "cs236351.grpcservice";
+
+package cs236351.grpcservice;
+
+/* Service for Handling Requests:
+   Received from other servers who aren't responsible for handling the request */
+service TransactionManagerRequestHandlerService {
+  rpc HandleTransaction(ReqTransactionMsg) returns (RespTransactionMsg) {}
+  rpc HandleCoinTransfer(ReqCoinTransferMsg) returns (RespTransactionMsg) {}
+  rpc HandleListAddrUTxO(ReqListAddrUTxOMsg) returns (RespUnusedUTxOListMsg) {}
+  rpc HandleListAddrTransactions(ReqListAddrTransactionsMsg) returns (RespTransactionListMsg) {}
+  rpc HandleListEntireHistory(ReqListEntireHistoryMsg) returns (RespTransactionListMsg) {}
+  rpc HandleAtomicTxList(ReqAtomicTxListMsg) returns (RespTransactionListMsg) {}
+}
+
+/* Service for Handling Regular Communication between Servers
+   Called between servers to do specific work on the transaction manager during request processing */
+service TransactionManagerRPCService {
+  rpc RecordSubmittedTransaction(SubmittedTransactionMsg) returns (google.protobuf.Empty) {}
+  rpc GetEntireHistory(EntireHistoryLimitMsg) returns (TransactionHistoryMsg) {}
+  rpc CanProcessAtomicTxList(AtomicTxListMsg) returns (DecisionMsg) {}
+}

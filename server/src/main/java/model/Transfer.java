@@ -2,39 +2,36 @@ package model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
+import javax.persistence.Embeddable;
 
-@Entity
+
+@Embeddable
 public class Transfer {
-    @JsonProperty("target_address")
-    private String targetAddress;
+
+    @JsonProperty("address")
+    private String address;
     @JsonProperty("coins")
-    private int coins;
-    @Id
-    private int id;
+    private long coins;
 
-    public String getTargetAddress() {
-        return targetAddress;
-    }
-
-    public void setTargetAddress(String targetAddress) {
-        this.targetAddress = targetAddress;
-    }
-
-    public int getCoins() {
-        return coins;
-    }
-
-    public void setCoins(int coins) {
+    public Transfer(String address, long coins) {
+        this.address = address;
         this.coins = coins;
     }
 
-    public void setId(int id) {
-        this.id = id;
+    public String getAddress() {
+        return address;
     }
 
-    public int getId() {
-        return id;
+    public void setAddress(String address) {
+        this.address = address;
     }
+
+    public long getCoins() {
+        return coins;
+    }
+
+    public void setCoins(long coins) {
+        this.coins = coins;
+    }
+
 }

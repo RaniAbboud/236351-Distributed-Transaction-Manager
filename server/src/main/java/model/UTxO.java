@@ -2,17 +2,31 @@ package model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.persistence.Embeddable;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 
-@Entity
+@Embeddable
 public class UTxO {
+
+
+    @JsonProperty("address")
+    private String address;
     @JsonProperty("transaction_id")
     private String transactionId;
-    @JsonProperty("target_address")
-    private String targetAddress;
-    @Id
-    private int id;
+
+    public UTxO(String address, String transactionId) {
+        this.address = address;
+        this.transactionId = transactionId;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
 
     public String getTransactionId() {
         return transactionId;
@@ -22,19 +36,4 @@ public class UTxO {
         this.transactionId = transactionId;
     }
 
-    public String getTargetAddress() {
-        return targetAddress;
-    }
-
-    public void setTargetAddress(String targetAddress) {
-        this.targetAddress = targetAddress;
-    }
-
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public int getId() {
-        return id;
-    }
 }

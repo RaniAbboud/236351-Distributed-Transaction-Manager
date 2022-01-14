@@ -1,16 +1,17 @@
 
 /* Model */
 Transfer:
-    targetAddress : bit[128]
+    address : bit[128]
     coins         : bit[64]
 
 UTxO:
     transactionId : bit[128]
-    sourceAddress : bit[128]
+    address : bit[128]
 
 Transaction:
     timestamp     : bit[64]
     transactionId : bit[128]
+    sourceAddress : String
     inputs        : UTxO[]
     outputs       : Transfer[]
 
@@ -21,9 +22,9 @@ transactionId:
 To verify Transaction:
     1. All UTxO's are from valid transactions
     2. Each UTxO matches a transfer in the corresponding transaction
-    3. All UTxO's are from same sourceAddress
+    3. All UTxO's are from same address
     4. Each UTxO is unused
-    5. Each transfer is to a different targetAddress
+    5. Each transfer is to a different address
     6. Sum of coins on inputs equals sum of coins on outputs
 
 To process a single transaction:
@@ -42,7 +43,7 @@ To process a single transaction:
 Functions are inside TransactionManager, called from REST server or another server using gRPC.
   1. Regular Transactions:
        - Called with (UTxO[] inputs, Transfer[] outputs, bit[64] reqId)
-       - Check if I am responsible for the UTxOs' sourceAddress, if not:
+       - Check if I am responsible for the UTxOs' address, if not:
            Call the same function on a relevant server from the relevant shard and return the response
            If that server fails: Retry until one succeeds
        - Create a "Transaction" object
@@ -52,7 +53,8 @@ Functions are inside TransactionManager, called from REST server or another serv
        - Wait until the transaction is finished by waiting on the "pending requests" entry
             // FIXME: Do it correctly in a while loop
        - Pop the response from the "pending requests" entry
-       - Return response (decision and timestamp)
+       - Return response:
+            Transaction if succeed, otherwise status code and message
   2. Coin Transfers
        - Called with (bit[128] sourceAddress, bit[128] targetAddress, bit[64] coins, bit[64] reqId)
        - Check if I am responsible for the sourceAddress, if not:
@@ -68,7 +70,8 @@ Functions are inside TransactionManager, called from REST server or another serv
        - Use atomic broadcast to broadcast the <"CoinTransfer", reqId, origServerId, pendingReqId> to my shard:
        - Wait until the transaction is finished by waiting on the "pending requests" entry
        - Pop the response from the "pending requests" entry
-       - Return response (decision and timestamp)
+       - Return response:
+            Transaction if succeed, otherwise status code and message
   3. List UTxOs
        - Called with (bit[128] sourceAddress)
        - Check if I am responsible for the sourceAddress, if not:
@@ -76,16 +79,18 @@ Functions are inside TransactionManager, called from REST server or another serv
            If that server fails: Retry until one succeeds
        - Go over the "unused UTxO" whose source is `sourceAddress` and add them to the response along
          with the relevant transactions
-       - Return response
+       - Return response:
+            List of UTxOs and Transactions
   4. List Transaction History
        - Called with (bit[128] sourceAddress, bit[64] limit)
        - Check if I am responsible for the sourceAddress, if not:
            Call the same function on a relevant server from the relevant shard and return the response
            If that server fails: Retry until one succeeds
-       - Go over the "transactions pool" and add every transaction if `sourceAddress` is the sourceAddress
-         of a UTxO in them or is the targetAddress in a Transfer.
+       - Go over the "transactions pool" and add every transaction if `sourceAddress` is the address
+         of a UTxO in them or is the address in a Transfer.
          Take up to "limit" transactions from it if specified
-       - Return response
+       - Return response:
+            List of Transactions
   5. List Entire History
        - Called with (bit[64] limit, bit[64] reqId)
        - Create an entry in the "pending requests" map and add the origServerId and pendingReqId (counter)
@@ -93,7 +98,8 @@ Functions are inside TransactionManager, called from REST server or another serv
        - Use atomic broadcast to broadcast the <"ListHistory", reqId, origServerId, pendingReqId> to all shards
        - Wait until the transaction is finished by waiting on the "pending requests" entry
        - Pop the response from the "pending requests" entry
-       - Return response
+       - Return response:
+            List of Transactions
   6. Submit Atomic List
        - Called with (Pair<UTxO[], Transfer[]>[] atomic_lst, bit[64] reqId)
        - Check if I am responsible for the UTxOs' sourceAddress of at least one transaction in the atomic_lst, if not:
@@ -109,6 +115,8 @@ Functions are inside TransactionManager, called from REST server or another serv
        - Wait until the transaction is finished by waiting on the "pending requests" entry
        - Pop the response from the "pending requests" entry
        - Return response (decision and timestamp)
+       - Return response:
+            List of Transaction if succeed, otherwise status code and message
 
 
 /* Handle Requests Received in the AtomicBroadcast */
@@ -289,9 +297,18 @@ Functions are inside TransactionManager, called from the gRPC thread from anothe
                     - Propose it to the leader of the shard and wait until he commits it using MultiPaxos
                     - If leader fails: Retry another leader
         - Leader:
-            - Learner service will save the <origServerId, pendingReqId> along with each request.
+            - Learner transactionmanager will save the <origServerId, pendingReqId> along with each request.
             - If Proposer is trying to propose an already learned request - he just returns.
             - Otherwise he proposes it as usual and returns when done.
             - Right before commit, he might need to take a timestamp (depending on type) and attach it to request.
         - Interface should be a non-blocking send, and a thread should get the receive and call the relevant function
           in the Transaction Manager.
+
+Requests:
+curl
+    -v -i
+    -X POST
+    localhost:8080/transactions
+    -d '[{"inputs":[{"address":"Addr1", "transaction_id":"Trans1"},{"address":"Addr1", "transaction_id":"Trans2"}],"outputs":[{"address":"Addr2","coins":100}]}]'
+    -H "Accept: application/json"
+    -H "Content-Type:application/json"

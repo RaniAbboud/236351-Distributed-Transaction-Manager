@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "cs236351.grpcservice";
+
+package cs236351.grpcservice;
+
+/* Basic Types */
+message UTxOMsg {
+  string address = 1;
+  string transaction_id = 2;
+}
+
+message TransferMsg {
+  string address = 1;
+  uint64 coins = 2;
+}
+
+message TransactionMsg {
+  string transaction_id = 1;
+  int64 timestamp = 2;
+  string source_address = 3;
+  repeated UTxOMsg inputs = 4;
+  repeated TransferMsg outputs = 5;
+}
+
+message HttpResponse {
+  int32 status_code = 1;
+  string reason = 2;
+}
+
+/* Request Handling - Transaction */
+message ReqTransactionMsg {
+  string req_id = 1;
+  repeated UTxOMsg inputs = 3;
+  repeated TransferMsg outputs = 4;
+}
+message RespTransactionMsg {
+  HttpResponse http_resp = 1;
+  repeated TransactionMsg transaction = 2;
+}
+
+/* Request Handling - Coin Transfer */
+message ReqCoinTransferMsg {
+  string req_id = 1;
+  string source_address = 2;
+  string target_address = 3;
+  uint64 coins = 4;
+}
+
+/* Request Handling - List Address Transactions */
+message ReqListAddrTransactionsMsg {
+  string source_address = 1;
+  int32 limit = 2;
+}
+message RespTransactionListMsg {
+  HttpResponse http_resp = 1;
+  repeated TransactionMsg transactions = 2;
+}
+
+/* Request Handling - List Entire History */
+message ReqListEntireHistoryMsg {
+  string req_id = 1;
+  int32 limit = 2;
+}
+
+/* Request Handling - List Address UTxO */
+message ReqListAddrUTxOMsg {
+  string source_address = 1;
+}
+message RespUnusedUTxOListMsg {
+  HttpResponse http_resp = 1;
+  repeated UTxOMsg utxos = 2;
+  repeated TransactionMsg transactions = 3;
+}
+
+/* Request Handling - Atomic Transaction List */
+message ReqAtomicTxListMsg {
+  string req_id = 1;
+  repeated ReqTransactionMsg transactions = 2;
+}
+
+/* Record Submitted Transaction */
+message SubmittedTransactionMsg {
+  // FIXME
+}
+
+/* Entire History Limit */
+message EntireHistoryLimitMsg {
+  // FIXME
+}
+
+/* Transaction History */
+message TransactionHistoryMsg {
+  // FIXME
+}
+
+/* Atomic Transaction List */
+message AtomicTxListMsg {
+  // FIXME
+}
+
+/* Decision on submitting Atomic Transaction List */
+message DecisionMsg {
+  // FIXME
+}

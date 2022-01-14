@@ -1,5 +1,6 @@
 package rest_api;
 
+import constants.Constants;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -7,13 +8,16 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 @SpringBootApplication
 public class RestServer {
 
     public static void main(String[] args) {
         org.apache.log4j.BasicConfigurator.configure();
-        SpringApplication.run(RestServer.class, args);
+        SpringApplication app = new SpringApplication(RestServer.class);
+        app.setDefaultProperties(Collections.singletonMap("server.port", System.getenv(Constants.ENV_REST_PORT)));
+        app.run(args);
     }
 
     @Bean

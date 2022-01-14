@@ -2,9 +2,12 @@ package zookeeper;
 
 import org.apache.zookeeper.KeeperException;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 
 public interface ZooKeeperClient {
+    void setup() throws IOException;
+
     String registerServer(String address) throws InterruptedException, KeeperException;
 
     void waitForDecision(String barrierId, String initiatorServerId) throws Exception;
