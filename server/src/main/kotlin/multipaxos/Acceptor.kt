@@ -12,7 +12,7 @@ import cs236351.multipaxos.MultiPaxosAcceptorServiceGrpcKt.MultiPaxosAcceptorSer
 internal val EMPTY_BYTE_STRING = ByteString.copyFrom(ByteArray(0))
 
 class AcceptorService(
-    private val id: Int,
+    private val id: String,
 ) : AcceptorGrpcImplBase(paxosThread) {
 
     private class Instance(val instanceNo: Int, acceptorID: Int) {
@@ -25,7 +25,7 @@ class AcceptorService(
     private val instances: ConcurrentMap<Int, Instance> = ConcurrentHashMap()
     private suspend fun <T> withInstance(no: Int, block: suspend Instance.() -> T): T {
         val instance = instances.computeIfAbsent(no) {
-            Instance(instanceNo = it, acceptorID = this.id)
+            Instance(instanceNo = it, acceptorID = this.id.toInt())
         }!!
         return instance.mutex.withLock { instance.block() }
     }
@@ -53,13 +53,13 @@ class AcceptorService(
             }
         }
         return promise
-        /*.also {
-            println("Acceptor [$instanceNo, $roundNo]\n" +
-                    "\tPrepare: value=\"${request.value?.toStringUtf8() ?: "null"}\"\n" +
-                    "\tPromise: ${promise.ack.toString()} value=\"${
-                        promise.value.let { if (it.size() == 0) it.toStringUtf8() else "null" }
-                    }\" lastgoodround=${RoundNo(promise.goodRoundNo)}\n===")
-        }*/
+        // .also {
+        //     println("Acceptor [$instanceNo, $roundNo]\n" +
+        //             "\tPrepare: value=\"${request.value?.toStringUtf8() ?: "null"}\"\n" +
+        //             "\tPromise: ${promise.ack.toString()} value=\"${
+        //                 promise.value.let { if (it.size() == 0) it.toStringUtf8() else "null" }
+        //             }\" lastgoodround=${RoundNo(promise.goodRoundNo)}\n===")
+        // }
     }
 
     override suspend fun doAccept(request: Accept): Accepted {
@@ -80,11 +80,10 @@ class AcceptorService(
             this.roundNo = roundNo.toProto()
             this.instanceNo = instanceNo
         }
-        /*.also {
-            println("Acceptor [$instanceNo, $roundNo]\n" +
-                    "\tAccept: value=\"${request.value.let { if (it.size() == 0) it.toStringUtf8() else "null" }}\"\n" +
-                    "\tAccepted: ${ack}\n===")
-        }*/
+        // .also {
+        //     println("Acceptor [$instanceNo, $roundNo]\n" +
+        //             "\tAccept: value=\"${request.value.let { if (it.size() == 0) it.toStringUtf8() else "null" }}\"\n" +
+        //             "\tAccepted: ${ack}\n===")
+        // }
     }
 }
-

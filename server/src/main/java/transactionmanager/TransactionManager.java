@@ -29,7 +29,6 @@ public class TransactionManager {
 
     // Request Handler Delegate - Used to forward requests to other servers
     final private RequestHandler delegate;
-
     // RPC Service is responsible for issuing gRPC requests to other servers
     final private RPCService rpcService;
 
@@ -111,21 +110,27 @@ public class TransactionManager {
         //     rpcService.client.getEntireHistory(List.of("2", "3"), 100, "STOP");
         //     return delegate.client.delegateHandleTransaction(List.of("1", "2", "3"), req, "STOP");
         // }
+        // FIXME
         return null;
     }
     public Response.TransactionResp handleCoinTransfer(String sourceAddress, String targetAddress, long coins, String reqId) {
-        return null;
-    }
-    public Response.UnusedUTxOListResp handleListAddrUTxO(String sourceAddress) {
-        return null;
-    }
-    public Response.TransactionListResp handleListAddrTransactions(String sourceAddress, int limit) {
+        // FIXME
         return null;
     }
     public Response.TransactionListResp handleListEntireHistory(int limit, String reqId) {
+        // FIXME
         return null;
     }
     public Response.TransactionListResp handleAtomicTxList(List<Request.TransactionRequest> atomicList, String reqId) {
+        // FIXME
+        return null;
+    }
+    public Response.UnusedUTxOListResp handleListAddrUTxO(String sourceAddress) {
+        // FIXME
+        return null;
+    }
+    public Response.TransactionListResp handleListAddrTransactions(String sourceAddress, int limit) {
+        // FIXME
         return null;
     }
 
@@ -136,12 +141,15 @@ public class TransactionManager {
      *  checking if an atomic list can be submitted or giving the entire history.
      */
     public void recordSubmittedTransaction(Transaction transaction) {
+        // FIXME
         return;
     }
     public List<Response> canProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList, String reqId) {
+        // FIXME
         return null;
     }
     public List<Transaction> getEntireHistory(int limit, String reqId) {
+        // FIXME
         return null;
     }
 
@@ -150,6 +158,28 @@ public class TransactionManager {
      *  Request Processing:
      *  Functions are called on requests that were broadcast using AtomicBroadcast to multiple servers.
      *  Functions should do the processing logic here for each of the functions.
+     *  Each request (other than the ListEntireHistory) arrives with an idempotency key used to
+     *  identify a specific request. If the idempotency key matches a previous request, we don't re-execute.
+     *  We should then return the original response with a `FIXME` http status code.
+     *  The idempotencyKey should be:
+     *      - For Transactions: "Transaction-{reqId}-{transactionId}"
+     *      - For Coin Transfer: "CoinTransfer-{reqId}-{sourceAddress}-{targetAddress}-{coins}"
+     *      - For Atomic List: "AtomicList-{reqId}-{transactionId}-{transactionId}-...-{transactionId}"
+     *
+     *  FIXME FIXME: Timestamps: What to do ??
+     *
      */
+    public void processTransaction(String idempotencyKey, Transaction trans, String origServerId, int pendingReqId) {
+        // FIXME
+        return;
+    }
+    public void processAtomicTxList(String idempotencyKey, List<Transaction> atomicList, String origServerId, int pendingReqId) {
+        // FIXME
+        return;
+    }
+    public void processListEntireHistory(int limit, String origServerId, int pendingReqId) {
+        // FIXME
+        return;
+    }
 
 }

@@ -38,11 +38,15 @@ internal val paxosThread = newSingleThreadContext(
     .asExecutor()
     .asCoroutineDispatcher()
 
-interface OmegaFailureDetector<ID> {
+interface OmegaFailureDetector {
     // This property should return the value immediately
-    val leader: ID
+    val leader: String
 
     // Notifies each time when the leader has change
     // by invoking the function argument
     fun addWatcher(observer: suspend () -> Unit)
+
 }
+
+// Debug for multipaxos kotlin code
+val MULTIPAXOS_DEBUG : Boolean = false

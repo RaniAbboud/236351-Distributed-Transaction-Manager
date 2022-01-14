@@ -289,15 +289,11 @@ Functions are inside TransactionManager, called from the gRPC thread from anothe
         - Problem: We don't want transactions with same <origServerId, pendingReqId> to arrive more than once.
       => When sending a new request:
         - To send:
-            - If to single shard:
-                - Propose it to leader and wait until he commits it using MultiPaxos
-                - If leader fails: Retry another leader
-            - If more than one shard:
-                - Go over the SORTED list of relevant shards: (sorting needed to avoid deadlocks)
-                    - Propose it to the leader of the shard and wait until he commits it using MultiPaxos
-                    - If leader fails: Retry another leader
+                Go over the SORTED list of relevant shards: (sorting needed to avoid deadlocks)
+                  - Propose it to the leader of the shard and wait until he commits it using MultiPaxos
+                  - If leader fails: Retry another leader
         - Leader:
-            - Learner transactionmanager will save the <origServerId, pendingReqId> along with each request.
+            - Learner will save the <origServerId, pendingReqId> along with each request.
             - If Proposer is trying to propose an already learned request - he just returns.
             - Otherwise he proposes it as usual and returns when done.
             - Right before commit, he might need to take a timestamp (depending on type) and attach it to request.

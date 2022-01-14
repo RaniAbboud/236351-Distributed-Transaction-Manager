@@ -5,7 +5,6 @@ import "multipaxos/paxos_messages.proto";
 
 option java_multiple_files = true;
 option java_package = "cs236351.multipaxos";
-//option java_outer_classname = "PaxosProtocol";
 
 package cs236351.multipaxos;
 
@@ -16,4 +15,8 @@ service MultiPaxosAcceptorService {
 
 service MultiPaxosLearnerService {
   rpc DoCommit(Commit) returns (google.protobuf.Empty) {}
+}
+
+service MultiPaxosProposerService {
+  rpc DoPropose(Propose) returns (ProposeResponse) {}
 }

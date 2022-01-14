@@ -62,4 +62,3 @@ internal class MajorityQuorumWaiter<ID, Stub>(
         return QuorumWait(okCount >= majoritySize, list)
     }
 }
-

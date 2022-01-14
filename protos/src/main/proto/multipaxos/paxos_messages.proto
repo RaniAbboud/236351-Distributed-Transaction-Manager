@@ -2,7 +2,6 @@ syntax = "proto3";
 
 option java_multiple_files = true;
 option java_package = "cs236351.multipaxos";
-//option java_outer_classname = "PaxosProtocol";
 
 package cs236351.multipaxos;
 
@@ -47,3 +46,10 @@ message Commit {
   int32 instance_no = 3;
 }
 
+message Propose {
+  bytes value = 1;
+}
+
+message ProposeResponse {
+  Ack ack = 1;
+}
