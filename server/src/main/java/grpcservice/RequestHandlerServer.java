@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 public class RequestHandlerServer extends TransactionManagerRequestHandlerServiceGrpc.TransactionManagerRequestHandlerServiceImplBase {
     private static final Logger logger = Logger.getLogger(RequestHandlerServer.class.getName());
 
-    /** The TransactionManager Handling these service */
+    /** The TransactionManager Handling these services */
     TransactionManager mngr;
 
     public RequestHandlerServer(TransactionManager mngr) {

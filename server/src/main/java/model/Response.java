@@ -4,13 +4,12 @@ import org.springframework.http.HttpStatus;
 
 import java.util.List;
 
-abstract public class Response {
+public class Response {
 
     public HttpStatus statusCode;
     public String reason;
 
-    /** Won't create objects from this kind immediately */
-    private Response(HttpStatus statusCode, String reason) {
+    public Response(HttpStatus statusCode, String reason) {
         this.statusCode = statusCode;
         this.reason = reason;
     }

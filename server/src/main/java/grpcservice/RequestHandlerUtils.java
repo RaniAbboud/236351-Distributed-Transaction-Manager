@@ -1,15 +1,36 @@
 package grpcservice;
 
 import cs236351.grpcservice.*;
+import io.grpc.StatusRuntimeException;
 import model.*;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class RequestHandlerUtils {
     private static final Logger logger = Logger.getLogger(RequestHandlerUtils.class.getName());
+
+    /** Try call one of the servers and stop when one of them succeeds and return */
+    public static <ReqT, RespT> RespT tryCallServer(String requester, List<String> servers, ReqT req, Map<String, Function<ReqT, RespT>> func) {
+        logger.log(Level.INFO, String.format("%s: Sending %s to servers %s", requester, req.toString(), servers.toString()));
+        for (String currServer : servers) {
+            try {
+                logger.log(Level.INFO, String.format("%s: Trying server %s", requester, currServer));
+                RespT resp = func.get(currServer).apply(req);
+                logger.log(Level.INFO, String.format("%s: RPC to %s succeeded with %s", requester, currServer, resp.toString()));
+                return resp;
+            } catch (StatusRuntimeException e) {
+                logger.log(Level.WARNING, String.format("%s: RPC to %s failed, will retry if any left", requester, currServer));
+            }
+        }
+        logger.log(Level.SEVERE, String.format("%s: Sending %s failed on all servers: %s !!", requester, req.toString(), servers.toString()));
+        return null;
+    }
 
     /** Conversion for Requests from regular to gRPC */
     public static ReqTransactionMsg createReqTransactionMsg(Request.TransactionRequest transaction, String reqId) {
@@ -104,7 +125,7 @@ public class RequestHandlerUtils {
     }
 
     /** Conversions for responses from regular to gRPC */
-    private static HttpResponse createHttpResponse(Response resp) {
+    public static HttpResponse createHttpResponse(Response resp) {
         return HttpResponse.newBuilder()
                 .setStatusCode(resp.statusCode.value())
                 .setReason(resp.reason)

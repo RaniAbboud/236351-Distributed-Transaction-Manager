@@ -80,27 +80,12 @@ message ReqAtomicTxListMsg {
   repeated ReqTransactionMsg transactions = 2;
 }
 
-/* Record Submitted Transaction */
-message SubmittedTransactionMsg {
-  // FIXME
-}
-
-/* Entire History Limit */
-message EntireHistoryLimitMsg {
-  // FIXME
-}
-
 /* Transaction History */
 message TransactionHistoryMsg {
-  // FIXME
-}
-
-/* Atomic Transaction List */
-message AtomicTxListMsg {
-  // FIXME
+  repeated TransactionMsg transactions = 1;
 }
 
 /* Decision on submitting Atomic Transaction List */
 message DecisionMsg {
-  // FIXME
+  repeated HttpResponse http_resp = 2;
 }

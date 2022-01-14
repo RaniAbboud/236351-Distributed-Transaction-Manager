@@ -1,16 +1,21 @@
 package transactionmanager;
 
+import grpcservice.RPCService;
 import grpcservice.RequestHandler;
+import grpcservice.RequestHandlerUtils;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.StatusRuntimeException;
 import javassist.bytecode.stackmap.TypeData;
 import model.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import zookeeper.ZooKeeperClient;
 import zookeeper.ZooKeeperClientImpl;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static java.lang.Thread.sleep;
@@ -25,6 +30,9 @@ public class TransactionManager {
     // Request Handler Delegate - Used to forward requests to other servers
     final private RequestHandler delegate;
 
+    // RPC Service is responsible for issuing gRPC requests to other servers
+    final private RPCService rpcService;
+
     // The Transaction Ledger (db)
     final private TransactionLedger ledger;
 
@@ -32,6 +40,7 @@ public class TransactionManager {
         this.zk = new ZooKeeperClientImpl();
         this.ledger = new TransactionLedger();
         this.delegate = new RequestHandler(this);
+        this.rpcService = new RPCService(this);
     }
 
     /** Setup Stage for all the subcomponents */
@@ -61,6 +70,7 @@ public class TransactionManager {
 
         // Add services to the serverBuilder before continuing
         this.delegate.addServices(serverBuilder);
+        this.rpcService.addServices(serverBuilder);
 
         // Run the gRPC server in the background
         Server grpcServer = serverBuilder.build();
@@ -73,8 +83,9 @@ public class TransactionManager {
         // FIXME: MUST wait for setup to finish in ALL servers before finishing
         try { sleep(3000); } catch (InterruptedException e) { e.printStackTrace(); }
 
-        // Setup delegate service
+        // Setup services
         this.delegate.setup(FIXME_serversAddresses);
+        this.rpcService.setup(FIXME_serversAddresses);
 
         // FIXME: MUST wait for setup to finish in ALL servers before finishing
         try { sleep(3000); } catch (InterruptedException e) { e.printStackTrace(); }
@@ -91,10 +102,15 @@ public class TransactionManager {
 
     /**
      *  Request Handling:
-     *  Functions are called from either the REST server or from another Server using the RequestHandler service
+     *  Functions are called from either the REST server or from another Server using the RequestHandler service.
+     *  They either perform locally or post a request to the atomic broadcast and wait until the request is completed.
      *  Functions should return the response - not exception so calling server using gRPC can handle them correctly.
      */
     public Response.TransactionResp handleTransaction(Request.TransactionRequest req , String reqId) {
+        // if (!"STOP".equals(reqId)) {
+        //     rpcService.client.getEntireHistory(List.of("2", "3"), 100, "STOP");
+        //     return delegate.client.delegateHandleTransaction(List.of("1", "2", "3"), req, "STOP");
+        // }
         return null;
     }
     public Response.TransactionResp handleCoinTransfer(String sourceAddress, String targetAddress, long coins, String reqId) {
@@ -113,16 +129,27 @@ public class TransactionManager {
         return null;
     }
 
+
+    /**
+     *  RPC services:
+     *  Functions are called using gRPC from other servers. Used for submitting a transaction,
+     *  checking if an atomic list can be submitted or giving the entire history.
+     */
+    public void recordSubmittedTransaction(Transaction transaction) {
+        return;
+    }
+    public List<Response> canProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList, String reqId) {
+        return null;
+    }
+    public List<Transaction> getEntireHistory(int limit, String reqId) {
+        return null;
+    }
+
+
     /**
      *  Request Processing:
      *  Functions are called on requests that were broadcast using AtomicBroadcast to multiple servers.
      *  Functions should do the processing logic here for each of the functions.
-     */
-
-    /**
-     *  RPC services:
-     *  Functions are called using gRPC from other servers. Like for submitting a transaction
-     *  or checking if an atomic list can be submitted.
      */
 
 }

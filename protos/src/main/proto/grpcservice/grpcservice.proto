@@ -22,7 +22,7 @@ service TransactionManagerRequestHandlerService {
 /* Service for Handling Regular Communication between Servers
    Called between servers to do specific work on the transaction manager during request processing */
 service TransactionManagerRPCService {
-  rpc RecordSubmittedTransaction(SubmittedTransactionMsg) returns (google.protobuf.Empty) {}
-  rpc GetEntireHistory(EntireHistoryLimitMsg) returns (TransactionHistoryMsg) {}
-  rpc CanProcessAtomicTxList(AtomicTxListMsg) returns (DecisionMsg) {}
+  rpc RecordSubmittedTransaction(TransactionMsg) returns (google.protobuf.Empty) {}
+  rpc GetEntireHistory(ReqListEntireHistoryMsg) returns (TransactionHistoryMsg) {}
+  rpc CanProcessAtomicTxList(ReqAtomicTxListMsg) returns (DecisionMsg) {}
 }
