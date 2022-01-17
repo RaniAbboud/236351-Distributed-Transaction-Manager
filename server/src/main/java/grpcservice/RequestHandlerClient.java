@@ -49,8 +49,8 @@ public class RequestHandlerClient {
 
     /** Delegate Requests to Other Servers
      *  Requests receive in addition to the regular inputs a list of servers to try sending the transaction to */
-    public Response.TransactionResp delegateHandleTransaction(List<String> servers, Request.TransactionRequest transaction, String reqId) {
-        ReqTransactionMsg req = RequestHandlerUtils.createReqTransactionMsg(transaction, reqId);
+    public Response.TransactionResp delegateHandleTransaction(List<String> servers, Request.TransactionRequest transaction) {
+        ReqTransactionMsg req = RequestHandlerUtils.createReqTransactionMsg(transaction);
         RespTransactionMsg resp = tryCallServer("delegateHandleTransaction", servers, req, this.handleTransactionStubs);
         return RequestHandlerUtils.createTransactionResp(resp);
     }
@@ -69,13 +69,13 @@ public class RequestHandlerClient {
         RespTransactionListMsg resp = tryCallServer("delegateHandleListAddrTransactions", servers, req, this.handleListAddrTransactionsStubs);
         return RequestHandlerUtils.createTransactionListResp(resp);
     }
-    public Response.TransactionListResp delegateHandleListEntireHistory(List<String> servers, int limit, String reqId) {
-        ReqListEntireHistoryMsg req = RequestHandlerUtils.createReqListEntireHistoryMsg(limit, reqId);
+    public Response.TransactionListResp delegateHandleListEntireHistory(List<String> servers, int limit) {
+        ReqListEntireHistoryMsg req = RequestHandlerUtils.createReqListEntireHistoryMsg(limit);
         RespTransactionListMsg resp = tryCallServer("delegateHandleListEntireHistory", servers, req, this.handleListEntireHistoryStubs);
         return RequestHandlerUtils.createTransactionListResp(resp);
     }
-    public Response.TransactionListResp delegateHandleAtomicTxList(List<String> servers, List<Request.TransactionRequest> atomicList, String reqId) {
-        ReqAtomicTxListMsg req = RequestHandlerUtils.createReqAtomicTxListMsg(atomicList, reqId);
+    public Response.TransactionListResp delegateHandleAtomicTxList(List<String> servers, List<Request.TransactionRequest> atomicList) {
+        ReqAtomicTxListMsg req = RequestHandlerUtils.createReqAtomicTxListMsg(atomicList);
         RespTransactionListMsg resp = tryCallServer("delegateHandleAtomicTxList", servers, req, this.handleAtomicTxListStubs);
         return RequestHandlerUtils.createTransactionListResp(resp);
     }

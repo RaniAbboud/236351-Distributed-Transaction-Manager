@@ -32,7 +32,7 @@ public class RPCServiceServer extends TransactionManagerRPCServiceGrpc.Transacti
 
     @Override
     public void getEntireHistory(ReqListEntireHistoryMsg request, StreamObserver<TransactionHistoryMsg> responseObserver) {
-        List<Transaction> resp = mngr.getEntireHistory(request.getLimit(), request.getReqId());
+        List<Transaction> resp = mngr.getEntireHistory(request.getLimit());
         responseObserver.onNext(TransactionHistoryMsg.newBuilder().addAllTransactions(
                 resp.stream().map(RequestHandlerUtils::createTransactionMsg).collect(Collectors.toList())).build());
         responseObserver.onCompleted();
@@ -44,7 +44,7 @@ public class RPCServiceServer extends TransactionManagerRPCServiceGrpc.Transacti
                 request.getTransactionsList().stream().map(trans -> new Request.TransactionRequest(
                         trans.getInputsList().stream().map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()),
                         trans.getOutputsList().stream().map(RequestHandlerUtils::createTransfer).collect(Collectors.toList())
-                )).collect(Collectors.toList()), request.getReqId());
+                )).collect(Collectors.toList()));
         responseObserver.onNext(DecisionMsg.newBuilder().addAllHttpResp(responses.stream()
                 .map(resp -> RequestHandlerUtils.createHttpResponse(resp)).collect(Collectors.toList())).build());
         responseObserver.onCompleted();

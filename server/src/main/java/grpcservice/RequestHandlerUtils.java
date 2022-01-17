@@ -33,9 +33,8 @@ public class RequestHandlerUtils {
     }
 
     /** Conversion for Requests from regular to gRPC */
-    public static ReqTransactionMsg createReqTransactionMsg(Request.TransactionRequest transaction, String reqId) {
+    public static ReqTransactionMsg createReqTransactionMsg(Request.TransactionRequest transaction) {
         return ReqTransactionMsg.newBuilder()
-                .setReqId(reqId)
                 .addAllInputs(transaction.inputs.stream().map(input ->
                         UTxOMsg.newBuilder()
                                 .setTransactionId(input.getTransactionId())
@@ -62,16 +61,14 @@ public class RequestHandlerUtils {
                 .setLimit(limit)
                 .build();
     }
-    public static ReqListEntireHistoryMsg createReqListEntireHistoryMsg(int limit, String reqId) {
+    public static ReqListEntireHistoryMsg createReqListEntireHistoryMsg(int limit) {
         return ReqListEntireHistoryMsg.newBuilder()
-                .setReqId(reqId)
                 .setLimit(limit)
                 .build();
     }
-    public static ReqAtomicTxListMsg createReqAtomicTxListMsg(List<Request.TransactionRequest> atomicList, String reqId) {
+    public static ReqAtomicTxListMsg createReqAtomicTxListMsg(List<Request.TransactionRequest> atomicList) {
         return ReqAtomicTxListMsg.newBuilder()
-                .setReqId(reqId)
-                .addAllTransactions(atomicList.stream().map(req -> createReqTransactionMsg(req, reqId)).collect(Collectors.toList()))
+                .addAllTransactions(atomicList.stream().map(req -> createReqTransactionMsg(req)).collect(Collectors.toList()))
                 .build();
     }
     public static ReqListAddrUTxOMsg createReqListAddrUTxOMsg(String sourceAddress) {

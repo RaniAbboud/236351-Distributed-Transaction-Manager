@@ -23,8 +23,7 @@ public class RequestHandlerServer extends TransactionManagerRequestHandlerServic
     public void handleTransaction(ReqTransactionMsg request, StreamObserver<RespTransactionMsg> responseObserver) {
         responseObserver.onNext(RequestHandlerUtils.createRespTransactionMsg(mngr.handleTransaction(new Request.TransactionRequest(
                 request.getInputsList().stream().map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()),
-                request.getOutputsList().stream().map(RequestHandlerUtils::createTransfer).collect(Collectors.toList())),
-                request.getReqId()
+                request.getOutputsList().stream().map(RequestHandlerUtils::createTransfer).collect(Collectors.toList()))
         )));
         responseObserver.onCompleted();
     }
@@ -60,8 +59,7 @@ public class RequestHandlerServer extends TransactionManagerRequestHandlerServic
     @Override
     public void handleListEntireHistory(ReqListEntireHistoryMsg request, StreamObserver<RespTransactionListMsg> responseObserver) {
         responseObserver.onNext(RequestHandlerUtils.createRespTransactionListMsg((mngr.handleListEntireHistory(
-                request.getLimit(),
-                request.getReqId()
+                request.getLimit()
         ))));
         responseObserver.onCompleted();
     }
@@ -72,8 +70,7 @@ public class RequestHandlerServer extends TransactionManagerRequestHandlerServic
                 request.getTransactionsList().stream().map(trans -> new Request.TransactionRequest(
                         trans.getInputsList().stream().map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()),
                         trans.getOutputsList().stream().map(RequestHandlerUtils::createTransfer).collect(Collectors.toList())
-                        )).collect(Collectors.toList()),
-                request.getReqId()
+                        )).collect(Collectors.toList())
         ))));
         responseObserver.onCompleted();
     }

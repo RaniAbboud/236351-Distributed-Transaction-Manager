@@ -301,10 +301,10 @@ Functions are inside TransactionManager, called from the gRPC thread from anothe
           in the Transaction Manager.
 
 Requests:
-curl
-    -v -i
-    -X POST
-    localhost:8080/transactions
-    -d '[{"inputs":[{"address":"Addr1", "transaction_id":"Trans1"},{"address":"Addr1", "transaction_id":"Trans2"}],"outputs":[{"address":"Addr2","coins":100}]}]'
-    -H "Accept: application/json"
+curl \
+    -v -i \
+    -X POST \
+    localhost:8080/transactions \
+    -d '[{"inputs":[{"address":"Addr1", "transaction_id":"Trans1"},{"address":"Addr1", "transaction_id":"Trans2"}],"outputs":[{"address":"Addr2","coins":100}]}]' \
+    -H "Accept: application/json" \
     -H "Content-Type:application/json"

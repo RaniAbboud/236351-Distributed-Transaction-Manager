@@ -63,15 +63,15 @@ public class RPCServiceClient {
     }
 
     /** Checks if an AtomicList can be processed in one of the servers in the list, stops when one succeeds */
-    public List<Response> canProcessAtomicTxListStubs(List<String> servers, List<Request.TransactionRequest> atomicList, String reqId) {
-        ReqAtomicTxListMsg req = RequestHandlerUtils.createReqAtomicTxListMsg(atomicList, reqId);
+    public List<Response> canProcessAtomicTxListStubs(List<String> servers, List<Request.TransactionRequest> atomicList) {
+        ReqAtomicTxListMsg req = RequestHandlerUtils.createReqAtomicTxListMsg(atomicList);
         DecisionMsg resp = tryCallServer("canProcessAtomicTxListStubs", servers, req, this.canProcessAtomicTxListStubs);
         return resp.getHttpRespList().stream().map(r -> new Response(HttpStatus.resolve(r.getStatusCode()), r.getReason())).collect(Collectors.toList());
     }
 
     /** Gets the entire history from one of the servers in the list, stops when one succeeds */
-    public List<Transaction> getEntireHistory(List<String> servers, int limit, String reqId) {
-        ReqListEntireHistoryMsg req = RequestHandlerUtils.createReqListEntireHistoryMsg(limit, reqId);
+    public List<Transaction> getEntireHistory(List<String> servers, int limit) {
+        ReqListEntireHistoryMsg req = RequestHandlerUtils.createReqListEntireHistoryMsg(limit);
         TransactionHistoryMsg resp = tryCallServer("getEntireHistory", servers, req, this.getEntireHistoryStubs);
         return resp.getTransactionsList().stream().map(RequestHandlerUtils::createTransaction).collect(Collectors.toList());
     }

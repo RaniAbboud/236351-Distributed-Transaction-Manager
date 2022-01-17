@@ -49,8 +49,7 @@ public class TransactionController {
     public @ResponseBody Transaction createTransaction(@RequestBody List<Request.TransactionRequest> transactions) {
         if (transactions.size() == 1) {
             Request.TransactionRequest transactionReq = transactions.get(0);
-            // FIXME: Where to get the reqId from ??
-            Response.TransactionResp resp = transactionManager.handleTransaction(transactionReq, "FIXME-FIXME");
+            Response.TransactionResp resp = transactionManager.handleTransaction(transactionReq);
             // FIXME: Handle response !!
         } else {
             // FIXME
@@ -60,6 +59,7 @@ public class TransactionController {
 
     @PostMapping("/send_coins")
     public @ResponseBody Transaction sendCoins(@RequestBody SendCoinsRequestBody body) {
+        // FIXME: Where to get the reqId from ??
         // FIXME
         // transactionManager.sendCoins(body.sourceAddress, body.targetAddress, body.coins);
         return null;

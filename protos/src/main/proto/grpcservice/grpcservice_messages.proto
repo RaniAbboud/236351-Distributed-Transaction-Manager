@@ -31,7 +31,6 @@ message HttpResponse {
 
 /* Request Handling - Transaction */
 message ReqTransactionMsg {
-  string req_id = 1;
   repeated UTxOMsg inputs = 3;
   repeated TransferMsg outputs = 4;
 }
@@ -60,7 +59,6 @@ message RespTransactionListMsg {
 
 /* Request Handling - List Entire History */
 message ReqListEntireHistoryMsg {
-  string req_id = 1;
   int32 limit = 2;
 }
 
@@ -76,7 +74,6 @@ message RespUnusedUTxOListMsg {
 
 /* Request Handling - Atomic Transaction List */
 message ReqAtomicTxListMsg {
-  string req_id = 1;
   repeated ReqTransactionMsg transactions = 2;
 }
 

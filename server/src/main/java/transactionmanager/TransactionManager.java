@@ -105,11 +105,8 @@ public class TransactionManager {
      *  They either perform locally or post a request to the atomic broadcast and wait until the request is completed.
      *  Functions should return the response - not exception so calling server using gRPC can handle them correctly.
      */
-    public Response.TransactionResp handleTransaction(Request.TransactionRequest req , String reqId) {
-        // if (!"STOP".equals(reqId)) {
-        //     rpcService.client.getEntireHistory(List.of("2", "3"), 100, "STOP");
-        //     return delegate.client.delegateHandleTransaction(List.of("1", "2", "3"), req, "STOP");
-        // }
+    public Response.TransactionResp handleTransaction(Request.TransactionRequest req) {
+        LOGGER.log(Level.INFO, String.format("handleTransaction: Got request %s", req.toString()));
         // FIXME
         return null;
     }
@@ -117,11 +114,11 @@ public class TransactionManager {
         // FIXME
         return null;
     }
-    public Response.TransactionListResp handleListEntireHistory(int limit, String reqId) {
+    public Response.TransactionListResp handleListEntireHistory(int limit) {
         // FIXME
         return null;
     }
-    public Response.TransactionListResp handleAtomicTxList(List<Request.TransactionRequest> atomicList, String reqId) {
+    public Response.TransactionListResp handleAtomicTxList(List<Request.TransactionRequest> atomicList) {
         // FIXME
         return null;
     }
@@ -144,11 +141,11 @@ public class TransactionManager {
         // FIXME
         return;
     }
-    public List<Response> canProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList, String reqId) {
+    public List<Response> canProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList) {
         // FIXME
         return null;
     }
-    public List<Transaction> getEntireHistory(int limit, String reqId) {
+    public List<Transaction> getEntireHistory(int limit) {
         // FIXME
         return null;
     }
@@ -161,19 +158,21 @@ public class TransactionManager {
      *  Each request (other than the ListEntireHistory) arrives with an idempotency key used to
      *  identify a specific request. If the idempotency key matches a previous request, we don't re-execute.
      *  We should then return the original response with a `FIXME` http status code.
-     *  The idempotencyKey should be:
-     *      - For Transactions: "Transaction-{reqId}-{transactionId}"
-     *      - For Coin Transfer: "CoinTransfer-{reqId}-{sourceAddress}-{targetAddress}-{coins}"
-     *      - For Atomic List: "AtomicList-{reqId}-{transactionId}-{transactionId}-...-{transactionId}"
+     *  The idempotencyKey for Coin Transfer should be: "CoinTransfer-{reqId}-{sourceAddress}-{targetAddress}-{coins}"
+     *  The idempotencyKey for a regular Transaction or for an AtomicList is the transactionIds.
      *
      *  FIXME FIXME: Timestamps: What to do ??
      *
      */
-    public void processTransaction(String idempotencyKey, Transaction trans, String origServerId, int pendingReqId) {
+    public void processTransaction(Transaction trans, String origServerId, int pendingReqId) {
         // FIXME
         return;
     }
-    public void processAtomicTxList(String idempotencyKey, List<Transaction> atomicList, String origServerId, int pendingReqId) {
+    public void processCoinTransfer(Transaction trans, String idempotencyKey, String origServerId, int pendingReqId) {
+        // FIXME
+        return;
+    }
+    public void processAtomicTxList(List<Transaction> atomicList, String origServerId, int pendingReqId) {
         // FIXME
         return;
     }
