@@ -1,0 +1,14 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="3x3 Servers" type="CompoundRunConfigurationType">
+    <toRun name="RestServer - 8080/8980" type="Application" />
+    <toRun name="RestServer - 8081/8981" type="Application" />
+    <toRun name="RestServer - 8082/8982" type="Application" />
+    <toRun name="RestServer - 8083/8983" type="Application" />
+    <toRun name="RestServer - 8084/8984" type="Application" />
+    <toRun name="RestServer - 8085/8985" type="Application" />
+    <toRun name="RestServer - 8086/8986" type="Application" />
+    <toRun name="RestServer - 8087/8987" type="Application" />
+    <toRun name="RestServer - 8088/8988" type="Application" />
+    <method v="2" />
+  </configuration>
+</component>

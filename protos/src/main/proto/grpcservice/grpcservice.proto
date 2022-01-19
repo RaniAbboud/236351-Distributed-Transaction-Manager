@@ -26,3 +26,9 @@ service TransactionManagerRPCService {
   rpc GetEntireHistory(ReqListEntireHistoryMsg) returns (TransactionHistoryMsg) {}
   rpc CanProcessAtomicTxList(ReqAtomicTxListMsg) returns (DecisionMsg) {}
 }
+
+/* Service used for the Atomic Broadcast */
+service AtomicBroadcastService {
+  rpc BroadcastToShard(BroadcastMsg) returns (google.protobuf.Empty) {}
+  rpc ExecuteMsg(BroadcastMsg) returns (google.protobuf.Empty) {}
+}

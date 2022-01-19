@@ -65,11 +65,11 @@ public class ZooKeeperClientImplTest {
         final String address = "localhost:1";
         String serverId = "";
         try {
-            serverId = zk.registerServer(address);
-        } catch (InterruptedException | KeeperException e) {
+            zk.registerServer(address);
+        } catch (IOException | InterruptedException | KeeperException e) {
             Assertions.fail(e);
         }
-        Assertions.assertTrue(serverId.startsWith("server-"));
+        Assertions.assertTrue(zk.getServerId().startsWith("server-"));
         try {
             zk.leaveBarrier(barrierId, shards);
         } catch (KeeperException e) {

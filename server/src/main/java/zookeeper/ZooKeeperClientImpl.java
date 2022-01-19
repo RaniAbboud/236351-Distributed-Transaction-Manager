@@ -6,15 +6,14 @@ import javassist.bytecode.stackmap.TypeData;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
-import org.springframework.util.SerializationUtils;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.io.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -38,21 +37,38 @@ class NodeData implements Serializable {
         this.decision = decision;
     }
 
-    public NodeData(boolean decision) {
-        this.decision = decision;
-    }
+    public NodeData(boolean decision) { this.decision = decision; }
 
     public NodeData(String address) {
         this.setAddress(address);
     }
+
+    public static byte[] convertToBytes(NodeData obj) throws IOException {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             ObjectOutputStream out = new ObjectOutputStream(bos)) {
+            out.writeObject(obj);
+            return bos.toByteArray();
+        }
+    }
+    public static NodeData convertFromBytes(byte[] bytes) throws IOException, ClassNotFoundException {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+             ObjectInputStream in = new ObjectInputStream(bis)) {
+            return (NodeData) in.readObject();
+        }
+    }
 }
 
-public class ZooKeeperClientImpl implements ZooKeeperClient {
+public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     private static final Logger LOGGER = Logger.getLogger(TypeData.ClassName.class.getName());
     private String zkConnection;
     private ZooKeeper zk;
+
     private String serverId;
-    private final HashMap<String, Integer> locks = new HashMap<>();
+    private String shardId;
+    private int numShards;
+    private int numServersPerShard;
+
+    private final Map<String, Integer> locks = new ConcurrentHashMap<>();
     final private String shardsPath = "/shards";
     final private String serversPath = "/servers";
     final private String barriersPath = "/barriers";
@@ -92,10 +108,6 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         return shards;
     }
 
-    private static int getNumberOfShardsEnvVar() {
-        return Integer.parseInt(System.getenv(Constants.ENV_NUM_SHARDS));
-    }
-
     private List<String> getServersInShard(String shardId) throws InterruptedException, KeeperException {
         final String shardPath = shardsPath + "/" + shardId;
         List<String> serversInShard = zk.getChildren(shardPath, null); // we don't need a watch here so watcher=null
@@ -112,21 +124,41 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     private String getShardForServer(String serverId) throws InterruptedException, KeeperException {
         String serverIndexStr = serverId.replaceFirst("^.*server-", "");
         int serverIndex = Integer.parseInt(serverIndexStr); // The indexes start from 0
-        return getAllShards().get(serverIndex / getNumberOfShardsEnvVar());
+        return "shard-"+ serverIndex / this.numShards;
     }
 
     /**
      * Setup for the Zookeeper
      * Called first when a server first starts.
      * Needs to wait until all servers in the system are up and running before returning
+     * Environment variables needed:
+     *    - zk_connection : list of ZooKeeper server addresses
+     *    - num_shards : Num shards
+     *    - num_servers_per_shard : Number of servers in shard - should be odd
+     *    - grpc_address : The IP:Port address to be used by the gRPC
+     *    - rest_port: The Port of the REST server to be used by Spring
      */
     @Override
     public void setup() throws IOException {
-        // FIXME: Need to setup everything here
-
-        // Create Client
+        /** Create Zookeeper client */
         int sessionTimeout = 5000;
-        this.zk = new ZooKeeper(zkConnection, sessionTimeout, null); // todo: watcher?
+        this.zk = new ZooKeeper(zkConnection, sessionTimeout, this);
+        /** Parse Env formation */
+        this.numShards = Integer.parseInt(System.getenv(Constants.ENV_NUM_SHARDS));
+        this.numServersPerShard = Integer.parseInt(System.getenv(Constants.ENV_NUM_SERVERS_PER_SHARD));
+        /** Create the Zookeeper Hierarchy */
+        try {
+            /** Create initial structure */
+            this.setupInitialStructures();
+            /** Register Myself */
+            this.registerServer(System.getenv(Constants.ENV_GRPC_ADDRESS));
+            /** Wait for all other Servers to be registered */
+            this.waitForAllServersToRegister();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (KeeperException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -142,12 +174,8 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         // Create counter path ("/counter")
         createNodeIfNotExists(counterPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         // Create shard nodes ("/shards/:shardId")
-        for (int i = 0; i < getNumberOfShardsEnvVar(); i++) {
-            try {
-                zk.create(shardsPath + "/shard-" + i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-            } catch (KeeperException.NodeExistsException e) {
-                LOGGER.log(Level.FINEST, "Not creating shard node. Node already exists. ShardId=shard-"+i);
-            }
+        for (int i = 0; i < this.numShards; i++) {
+            createNodeIfNotExists(shardsPath + "/shard-" + i, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         }
     }
 
@@ -156,20 +184,37 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
      * This method should be called after these structured where initialised.
      *
      * @param address: the server's address
-     * @return the serverId
      * @throws InterruptedException
      * @throws KeeperException
      */
     @Override
-    public String registerServer(String address) throws InterruptedException, KeeperException {
+    public void registerServer(String address) throws InterruptedException, KeeperException, IOException {
         NodeData serverNodeData = new NodeData(address);
-        String serverId = zk.create(serversPath + "/server-", SerializationUtils.serialize(serverNodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+        String serverId = zk.create(serversPath + "/server-", NodeData.convertToBytes(serverNodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
         serverId = serverId.replaceFirst("^.*server-", "server-");
         this.serverId = serverId;
         // Register to /shards/:shardId/
-        String shardId = getShardForServer(serverId);
-        zk.create(shardsPath + "/" + shardId + "/" + serverId, SerializationUtils.serialize(serverNodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-        return serverId;
+        this.shardId = getShardForServer(serverId);
+        zk.create(shardsPath + "/" + shardId + "/" + serverId, NodeData.convertToBytes(serverNodeData), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+    }
+
+    /**
+     * Wait for all servers in the system to be registered.
+     */
+    public void waitForAllServersToRegister() throws InterruptedException, KeeperException {
+        int numServers = this.numShards * this.numServersPerShard;
+        String lockId = "ALL_SERVERS_REGISTER_REGISTERED";
+        this.locks.put(lockId, new Integer(1)); // create a mutex for this watch
+        while (true) {
+            synchronized (locks.get(lockId)) {
+                List<String> list = zk.getChildren(this.serversPath, createWatcher(lockId, Watcher.Event.EventType.NodeChildrenChanged));
+                if (list.size() < numServers) {
+                    locks.get(lockId).wait();
+                } else {
+                    return;
+                }
+            }
+        }
     }
 
     /**
@@ -181,7 +226,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     @Override
     public void waitForDecision(String barrierId, String initiatorServerId) throws Exception {
         String watchId = barrierId + "-decision"; // setting a different watchId than the one we're using for the barrier itself.
-        this.locks.put(watchId, 1); // create a mutex for this watch
+        this.locks.put(watchId, new Integer(1)); // create a mutex for this watch
         watchServer(initiatorServerId, watchId);
         Stat stat = zk.exists(barriersPath + "/" + barrierId, createWatcher(watchId, Watcher.Event.EventType.NodeDataChanged));
         if (stat == null) {
@@ -198,14 +243,14 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
      * @throws KeeperException
      */
     @Override
-    public void setDecision(String barrierId, boolean decision) throws InterruptedException, KeeperException {
-        zk.setData(barriersPath + "/" + barrierId, SerializationUtils.serialize(new NodeData(decision)), -1);
+    public void setDecision(String barrierId, boolean decision) throws InterruptedException, KeeperException, IOException {
+        zk.setData(barriersPath + "/" + barrierId, NodeData.convertToBytes(new NodeData(decision)), -1);
     }
 
     @Override
     public void enterBarrier(String barrierId, String[] shards) throws KeeperException, InterruptedException {
         String barrierPath = barriersPath + "/" + barrierId;
-        this.locks.put(barrierId, 1); // create a mutex for this barrier
+        this.locks.put(barrierId, new Integer(1)); // create a mutex for this barrier
         try {
             zk.create(barrierPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
         } catch (KeeperException.NodeExistsException e) {
@@ -286,6 +331,40 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
         return Collections.min(shardServers);
     }
 
+
+    /**
+     * watchLeader is used by the atomic-broadcast to get notified when the leader needs to be changed.
+     *  @param shardId
+     * @param func
+     * @return
+     */
+    @Override
+    public String watchLeader(String shardId, BiFunction<String, String, Object> func) {
+        class LeaderWatcher implements Watcher {
+            @Override
+            public void process(WatchedEvent event) {
+                // leader may have changed
+                try {
+                    // set the watcher again (since it's a one-time trigger)
+                    List<String> serversInShard = zk.getChildren(shardsPath + "/" + shardId, new LeaderWatcher());
+                    String newLeader = Collections.min(serversInShard);
+                    LOGGER.log(Level.INFO, String.format("Leader of %s is currently %s", shardId, newLeader));
+                    func.apply(shardId, newLeader);
+                } catch (InterruptedException | KeeperException e) {
+                    LOGGER.log(Level.SEVERE, "Failed to reset watcher on leader for shard " + shardId, e);
+                }
+            }
+        }
+        // set the initial watch
+        try {
+            List<String> serversInShard = zk.getChildren(shardsPath + "/" + shardId, new LeaderWatcher());
+            return Collections.min(serversInShard);
+        } catch (KeeperException | InterruptedException e) {
+            LOGGER.log(Level.SEVERE, "Failed to set watcher on leader for shard " + shardId, e);
+            return null;
+        }
+    }
+
 //    @Override
 //    public boolean atomicCommitWait(String atomicTxnListId, boolean vote, String[] shards) throws InterruptedException, KeeperException {
 //        String myShardId = getShardForServer(serverId);
@@ -331,48 +410,17 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     }
 
     /**
-     * watchLeader is used by the atomic-broadcast to get notified when the leader needs to be changed.
-     *
-     * @param shardId
-     * @param func
-     */
-    @Override
-    public void watchLeader(String shardId, Method func) {
-        class LeaderWatcher implements Watcher {
-            @Override
-            public void process(WatchedEvent event) {
-                // leader may have changed
-                try {
-                    // set the watcher again (since it's a one-time trigger)
-                    List<String> serversInShard = zk.getChildren(shardsPath + "/" + shardId, new LeaderWatcher());
-                    func.invoke(null);
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    LOGGER.log(Level.SEVERE, "Failed to call leader-watcher method for shard " + shardId, e);
-                } catch (InterruptedException | KeeperException e) {
-                    LOGGER.log(Level.SEVERE, "Failed to reset watcher on leader for shard " + shardId, e);
-                }
-            }
-        }
-        // set the initial watch
-        try {
-            List<String> serversInShard = zk.getChildren(shardsPath + "/" + shardId, new LeaderWatcher());
-        } catch (KeeperException | InterruptedException e) {
-            LOGGER.log(Level.SEVERE, "Failed to set watcher on leader for shard " + shardId, e);
-        }
-    }
-
-    /**
      * @return A new unique timestamp as int.
      */
     @Override
-    public int getTimestamp() {
+    public long getTimestamp() {
         // create sequential node
-        int index = 0;
+        long index = -1;
         String indexStr = "";
         try {
             String id = zk.create(counterPath + "/child-", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
             indexStr = id.replaceFirst("^.*child-", "");
-            index = Integer.parseInt(indexStr) - 1; // I think the indexes start from 1 and not 0. That's why I did -1.
+            index = Long.parseLong(indexStr);
         } catch (KeeperException | InterruptedException e) {
             LOGGER.log(Level.SEVERE, "Failed to create counter node", e);
             return -1;
@@ -388,18 +436,54 @@ public class ZooKeeperClientImpl implements ZooKeeperClient {
     }
 
     private void createNodeIfNotExists(String path, byte[] data, List<ACL> acl, CreateMode createMode) throws InterruptedException, KeeperException {
-        Stat stat = zk.exists(path, false);
-        if (stat == null) {
+        try {
             zk.create(path, data, acl, createMode);
+        } catch (KeeperException.NodeExistsException e) {
+            LOGGER.log(Level.FINEST, String.format("Node %s already exists!", path));
         }
     }
 
 
     @Override
-    public String getServerAddress(String serverId) throws InterruptedException, KeeperException {
+    public String getServerAddress(String serverId) throws InterruptedException, KeeperException, IOException, ClassNotFoundException {
         byte[] data = zk.getData(serversPath + "/" + serverId, false, null);
-        NodeData nodeData = (NodeData) SerializationUtils.deserialize(data);
+        NodeData nodeData = NodeData.convertFromBytes(data);
         assert nodeData != null;
         return nodeData.getAddress();
+    }
+
+    @Override
+    public void process(WatchedEvent event) {
+        LOGGER.log(Level.INFO, String.format("Got the event %s: ", event.toString()));
+    }
+
+    public String getServerId() {
+        return serverId;
+    }
+
+    public void setServerId(String serverId) {
+        this.serverId = serverId;
+    }
+
+    public String getShardId() {
+        return shardId;
+    }
+
+    @Override
+    public List<String> getServers() throws InterruptedException, KeeperException {
+        return zk.getChildren(this.serversPath, false);
+    }
+
+    @Override
+    public Map<String, List<String>> getShards() throws InterruptedException, KeeperException {
+        Map<String, List<String>> shards = new HashMap<>();
+        for (String shard : getAllShards()) {
+            shards.put(shard, getServersInShard(shard));
+        }
+        return shards;
+    }
+
+    public void setShardId(String shardId) {
+        this.shardId = shardId;
     }
 }
