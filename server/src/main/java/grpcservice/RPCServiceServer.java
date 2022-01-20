@@ -25,14 +25,14 @@ public class RPCServiceServer extends TransactionManagerRPCServiceGrpc.Transacti
     /** The services */
     @Override
     public void recordSubmittedTransaction(TransactionMsg request, StreamObserver<Empty> responseObserver) {
-        mngr.recordSubmittedTransaction(RequestHandlerUtils.createTransaction(request));
+        mngr.gRPCRecordSubmittedTransaction(RequestHandlerUtils.createTransaction(request));
         responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
     }
 
     @Override
     public void getEntireHistory(ReqListEntireHistoryMsg request, StreamObserver<TransactionHistoryMsg> responseObserver) {
-        List<Transaction> resp = mngr.getEntireHistory(request.getLimit());
+        List<Transaction> resp = mngr.gRPCGetEntireHistory(request.getLimit());
         responseObserver.onNext(TransactionHistoryMsg.newBuilder().addAllTransactions(
                 resp.stream().map(RequestHandlerUtils::createTransactionMsg).collect(Collectors.toList())).build());
         responseObserver.onCompleted();
@@ -40,7 +40,7 @@ public class RPCServiceServer extends TransactionManagerRPCServiceGrpc.Transacti
 
     @Override
     public void canProcessAtomicTxList(ReqAtomicTxListMsg request, StreamObserver<DecisionMsg> responseObserver) {
-        List<Response> responses = mngr.canProcessAtomicTxListStubs(
+        List<Response> responses = mngr.gRPCCanProcessAtomicTxListStubs(
                 request.getTransactionsList().stream().map(trans -> new Request.TransactionRequest(
                         trans.getInputsList().stream().map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()),
                         trans.getOutputsList().stream().map(RequestHandlerUtils::createTransfer).collect(Collectors.toList())

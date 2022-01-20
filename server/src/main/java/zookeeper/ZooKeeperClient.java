@@ -16,6 +16,7 @@ public interface ZooKeeperClient {
     String getServerId();
     String getShardId();
     List<String> getServers() throws InterruptedException, KeeperException;
+    List<String> getServersInShard(String shardId) throws InterruptedException, KeeperException;
     Map<String, List<String>> getShards() throws InterruptedException, KeeperException;
     String getServerAddress(String serverId) throws InterruptedException, KeeperException, IOException, ClassNotFoundException;
 

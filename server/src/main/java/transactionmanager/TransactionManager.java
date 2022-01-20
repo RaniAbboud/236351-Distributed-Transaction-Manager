@@ -8,6 +8,7 @@ import io.grpc.ServerBuilder;
 import javassist.bytecode.stackmap.TypeData;
 import model.*;
 import org.apache.zookeeper.KeeperException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import zookeeper.ZooKeeperClient;
 import zookeeper.ZooKeeperClientImpl;
@@ -15,6 +16,7 @@ import zookeeper.ZooKeeperClientImpl;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -131,11 +133,28 @@ public class TransactionManager {
     }
 
     ////////////////////// Pending Requests ///////////////////////
-    final private List<PendingRequest> pendingRequests = new ArrayList<>();
+    volatile private Map<Integer, PendingRequest> pendingRequests = new ConcurrentHashMap<>();
+    volatile private AtomicInteger currPendingReqId = new AtomicInteger();
     private class PendingRequest {
-        private Integer mutex;
-        private String requestId;
-        private int localRequestId; // for Sajy
+        private volatile Response resp = null;
+        private void finish(Response resp) {
+            synchronized (this) {
+                this.resp = resp;
+                this.notify();
+            }
+        }
+        private <T> T waitDone() {
+            synchronized (this) {
+                while (resp == null) {
+                    try {
+                        this.wait();
+                    } catch (InterruptedException e) {
+                        /* Nothing */
+                    }
+                }
+            }
+            return (T) this.resp;
+        }
     }
 
     /**
@@ -145,9 +164,31 @@ public class TransactionManager {
      *  Functions should return the response - not exception so calling server using gRPC can handle them correctly.
      */
     public Response.TransactionResp handleTransaction(Request.TransactionRequest req) {
-        // FIXME: Implement
-        return null;
+        LOGGER.log(Level.INFO, String.format("handleTransaction: Received request %s", req.toString()));
+        if (isResponsibleForAddress(req.inputs.get(0).getAddress())) {
+            LOGGER.log(Level.INFO, String.format("handleTransaction: Will handle request"));
+            Transaction transaction = new Transaction(req.inputs, req.outputs);
+            String idempotencyKey = String.format("Transaction-%s", transaction.getTransactionId());
+            Integer pendingReqId = currPendingReqId.incrementAndGet();
+            PendingRequest pendingRequest = new PendingRequest();
+            pendingRequests.put(pendingReqId, pendingRequest);
+            LOGGER.log(Level.INFO, String.format("handleTransaction: Broadcasting transaction [%s] to shard [%s] with key [%s]",
+                                        transaction.toString(), myShardId, idempotencyKey));
+            atomicBroadcast.broadcastTransaction(myShardId, transaction, idempotencyKey, myServerId, pendingReqId);
+            Response.TransactionResp resp = pendingRequest.waitDone();
+            pendingRequests.remove(pendingReqId);
+            LOGGER.log(Level.INFO, String.format("handleTransaction: Got response %s", resp.toString()));
+            return resp;
+        } else {
+            String responsibleShard = getResponsibleShard(req.inputs.get(0).getAddress());
+            List<String> responsibleServers = getServersInShard(responsibleShard);
+            LOGGER.log(Level.INFO, String.format("handleTransaction: Won't handle request, will send to responsible shard: %s at servers: %s",
+                        responsibleShard, responsibleServers.toString()));
+            return delegate.client.delegateHandleTransaction(responsibleServers, req);
+        }
     }
+
+
     public Response.TransactionResp handleCoinTransfer(String sourceAddress, String targetAddress, long coins, String reqId) {
         // FIXME: Implement
         return null;
@@ -175,15 +216,15 @@ public class TransactionManager {
      *  Functions are called using gRPC from other servers. Used for submitting a transaction,
      *  checking if an atomic list can be submitted or giving the entire history.
      */
-    public void recordSubmittedTransaction(Transaction transaction) {
+    public void gRPCRecordSubmittedTransaction(Transaction transaction) {
         // FIXME: Implement
         return;
     }
-    public List<Response> canProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList) {
+    public List<Response> gRPCCanProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList) {
         // FIXME: Implement
         return null;
     }
-    public List<Transaction> getEntireHistory(int limit) {
+    public List<Transaction> gRPCGetEntireHistory(int limit) {
         // FIXME: Implement
         return null;
     }
@@ -199,15 +240,41 @@ public class TransactionManager {
      *  The idempotencyKey for Coin Transfer should be: "CoinTransfer-{reqId}-{sourceAddress}-{targetAddress}-{coins}"
      *  The idempotencyKey for a regular Transaction or for an AtomicList is the transactionIds.
      */
-    public void processTransaction(Transaction trans, String idempotencyKey, String origServerId, int pendingReqId) {
+
+    /** All finished requests with the responses we created for them */
+    volatile private Map<String, Response> doneRequests = new ConcurrentHashMap<>();
+
+    public void processTransactionLocally(Transaction trans, String idempotencyKey, String origServerId, int pendingReqId) {
+        LOGGER.log(Level.INFO, String.format("processTransaction: Received transaction %s with key %s from %s with pendingReqId %d",
+                            trans.toString(), idempotencyKey, origServerId, pendingReqId));
+        if (doneRequests.containsKey(idempotencyKey)) {
+            LOGGER.log(Level.INFO, String.format("processTransaction: Request with key %s already processed"));
+            if (origServerId.equals(myServerId)) {
+                LOGGER.log(Level.INFO, String.format("processTransaction: I will return the original response"));
+                this.pendingRequests.get(pendingReqId).finish(doneRequests.get(idempotencyKey));
+            } else {
+                LOGGER.log(Level.INFO, String.format("processTransaction: Already processed and not originated by me, ignoring."));
+            }
+        } else {
+            LOGGER.log(Level.INFO, String.format("processTransaction: Need to process transaction"));
+            Response.TransactionResp resp = this.tryProcessTransactionLocally(trans);
+            if (resp.statusCode == HttpStatus.OK) {
+                LOGGER.log(Level.INFO, String.format("processTransaction: Transaction processed successfully"));
+                this.doneRequests.put(idempotencyKey, resp);
+            } else {
+                LOGGER.log(Level.INFO, String.format("processTransaction: Transaction failed!!"));
+            }
+            if (myServerId.equals(origServerId)) {
+                LOGGER.log(Level.INFO, String.format("processTransaction: Transaction processed, returning %s", resp.toString()));
+                this.pendingRequests.get(pendingReqId).finish(resp);
+            }
+        }
+    }
+    public void processAtomicTxListLocally(List<Transaction> atomicList, String idempotencyKey, String origServerId, int pendingReqId) {
         // FIXME: Implement
         return;
     }
-    public void processAtomicTxList(List<Transaction> atomicList, String idempotencyKey, String origServerId, int pendingReqId) {
-        // FIXME: Implement
-        return;
-    }
-    public void processListEntireHistory(int limit, String origServerId, int pendingReqId) {
+    public void processListEntireHistoryLocally(int limit, String origServerId, int pendingReqId) {
         // FIXME: Implement
         return;
     }
@@ -218,6 +285,41 @@ public class TransactionManager {
     public long getNewTimestamp() {
         return zk.getTimestamp();
     }
+    private String getResponsibleShard(String address) {
+        try {
+            return zk.getResponsibleShard(address);
+        } catch (InterruptedException | KeeperException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+    private boolean isResponsibleForAddress(String address) {
+        return this.myShardId.equals(this.getResponsibleShard(address));
+    }
+    private List<String> getServersInShard(String shardId) {
+        try {
+            return zk.getServersInShard(shardId);
+        } catch (InterruptedException | KeeperException  e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private Response.TransactionResp tryProcessTransactionLocally(Transaction trans) {
+        // FIXME: Implement
+        // 0. If already processed: - Need to check in db
+        // return the processing response along with an ALREADY_PROCESSED flag.
+        // 1. Verify it can be processed:
+        // if not, return a response with INVALID flag - maybe specify exactly why.
+        // 2. Move each input UTxO to the "used UTxOs"
+        // 3. Add the transaction to "transactions pool"
+        // 4. Add Transfers in his shard to the pool of "unused UTxOs"
+        // 5. Send transaction and transfers to the relevant shards (other than my shard) and wait until it is received by them.
+        // 6. Return a response of the transaction processing with SUBMITTED flag.
+        trans.setTimestamp(1000);
+        return new Response.TransactionResp(HttpStatus.OK, "All good", trans);
+    }
+
     private void addGenesisBlockToLedger(long timestamp) {
         // FIXME: Should add the Genesis Block to the database since we are responsible for it.
         return;

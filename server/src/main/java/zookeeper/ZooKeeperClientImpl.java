@@ -108,7 +108,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         return shards;
     }
 
-    private List<String> getServersInShard(String shardId) throws InterruptedException, KeeperException {
+    public List<String> getServersInShard(String shardId) throws InterruptedException, KeeperException {
         final String shardPath = shardsPath + "/" + shardId;
         List<String> serversInShard = zk.getChildren(shardPath, null); // we don't need a watch here so watcher=null
         Collections.sort(serversInShard);

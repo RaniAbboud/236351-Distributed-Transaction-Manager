@@ -283,14 +283,14 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
             if (packet.hasTransaction()) {
                 Transaction trans = RequestHandlerUtils.createTransaction(packet.getTransaction());
                 trans.setTimestamp(packet.getAssignedTimestamp());
-                mngr.processTransaction(trans, packet.getIdempotencyKey(), packet.getOrigServerId(), packet.getPendingReqId());
+                mngr.processTransactionLocally(trans, packet.getIdempotencyKey(), packet.getOrigServerId(), packet.getPendingReqId());
             } else if (packet.hasTransactionsList()) {
-                mngr.processAtomicTxList(
+                mngr.processAtomicTxListLocally(
                         packet.getTransactionsList().getTransactionsList().stream().map(RequestHandlerUtils::createTransaction)
                                 .collect(Collectors.toList()),
                         packet.getIdempotencyKey(), packet.getOrigServerId(), packet.getPendingReqId());
             } else if (packet.hasLimit()) {
-                mngr.processListEntireHistory(packet.getLimit(), packet.getOrigServerId(), packet.getPendingReqId());
+                mngr.processListEntireHistoryLocally(packet.getLimit(), packet.getOrigServerId(), packet.getPendingReqId());
             }
             logger.log(Level.INFO, String.format("%s: Done executing", ID));
         }
