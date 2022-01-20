@@ -21,6 +21,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import static constants.Constants.GENESIS_ADDRESS;
+
 @Service
 public class TransactionManager {
     private static final Logger LOGGER = Logger.getLogger(TypeData.ClassName.class.getName());
@@ -44,7 +46,7 @@ public class TransactionManager {
 
     public TransactionManager() {
         this.zk = new ZooKeeperClientImpl();
-        this.ledger = new TransactionLedger();
+        this.ledger = new TransactionLedger(zk);
         this.delegate = new RequestHandler(this);
         this.rpcService = new RPCService(this);
         this.atomicBroadcast = new AtomicBroadcast(this);
@@ -115,7 +117,7 @@ public class TransactionManager {
         LOGGER.log(Level.INFO, String.format("Server %s has entered the initial barrier", myServerId));
         // Add Genesis Block to the server's storage (in case this server in the responsible shard)
         try {
-            String genesisShardId = zk.getResponsibleShard("Genesis-Transaction");
+            String genesisShardId = zk.getResponsibleShard(GENESIS_ADDRESS);
             if (genesisShardId.equals(myShardId)) {
                 LOGGER.log(Level.INFO, String.format("My shard is responsible for Genesis Transaction. Adding it to the ledger."));
                 ledger.addGenesisBlockToLedger();
@@ -166,7 +168,7 @@ public class TransactionManager {
      */
     public Response.TransactionResp handleTransaction(Request.TransactionRequest req) {
         LOGGER.log(Level.INFO, String.format("handleTransaction: Received request %s", req.toString()));
-        if (isResponsibleForAddress(req.inputs.get(0).getAddress())) {
+        if (zk.isResponsibleForAddress(req.inputs.get(0).getAddress())) {
             LOGGER.log(Level.INFO, String.format("handleTransaction: Will handle request"));
             Transaction transaction = new Transaction(req.inputs, req.outputs);
             String idempotencyKey = String.format("Transaction-%s", transaction.getTransactionId());
@@ -192,7 +194,7 @@ public class TransactionManager {
 
     public Response.TransactionResp handleCoinTransfer(String address, String targetAddress, long coins, String reqId) {
         // LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Received request %s", req.toString()));
-        // if (isResponsibleForAddress(req.inputs.get(0).getAddress())) {
+        // if (zk.isResponsibleForAddress(req.inputs.get(0).getAddress())) {
         //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Will handle request"));
         //     Transaction transaction = new Transaction(req.inputs, req.outputs);
         //     String idempotencyKey = String.format("Transaction-%s", transaction.getTransactionId());
@@ -228,7 +230,7 @@ public class TransactionManager {
 
     public Response.UnusedUTxOListResp handleListAddrUTxO(String address) {
         LOGGER.log(Level.INFO, String.format("handleListAddrUTxO: listing UTxOs for address %s", address));
-        if (isResponsibleForAddress(address)) {
+        if (zk.isResponsibleForAddress(address)) {
             LOGGER.log(Level.INFO, String.format("handleListAddrUTxO: Will handle request"));
             return new Response.UnusedUTxOListResp(HttpStatus.OK, "OK", new ArrayList<>(ledger.listUTxOsForAddress(address)));
         }
@@ -241,7 +243,7 @@ public class TransactionManager {
 
     public Response.TransactionListResp handleListAddrTransactions(String sourceAddress, int limit) {
         LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: listing transactions for address %s. Limit %d", sourceAddress, limit));
-        if (isResponsibleForAddress(sourceAddress)) {
+        if (zk.isResponsibleForAddress(sourceAddress)) {
             LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: Will handle request"));
             return new Response.TransactionListResp(HttpStatus.OK, "OK", new ArrayList<>(ledger.listTransactionsForAddress(sourceAddress, limit)));
         }
@@ -259,7 +261,7 @@ public class TransactionManager {
      */
     public void gRPCRecordSubmittedTransaction(Transaction transaction) {
         LOGGER.log(Level.INFO, String.format("gRPCRecordSubmittedTransaction: Recording %s", transaction.toString()));
-        ledger.registerTransaction(transaction);
+        ledger.recordTransaction(transaction);
     }
     public List<Response> gRPCCanProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList) {
         // FIXME: Implement
@@ -289,7 +291,7 @@ public class TransactionManager {
         LOGGER.log(Level.INFO, String.format("processTransaction: Received transaction %s with key %s from %s with pendingReqId %d",
                             trans.toString(), idempotencyKey, origServerId, pendingReqId));
         if (doneRequests.containsKey(idempotencyKey)) {
-            LOGGER.log(Level.INFO, String.format("processTransaction: Request with key %s already processed"));
+            LOGGER.log(Level.INFO, String.format("processTransaction: Request with key %s already processed", idempotencyKey));
             if (origServerId.equals(myServerId)) {
                 LOGGER.log(Level.INFO, String.format("processTransaction: I will return the original response"));
                 Response resp = doneRequests.get(idempotencyKey);
@@ -337,9 +339,6 @@ public class TransactionManager {
             return null;
         }
     }
-    private boolean isResponsibleForAddress(String address) {
-        return this.myShardId.equals(this.getResponsibleShard(address));
-    }
     private List<String> getServersInShard(String shardId) {
         try {
             return zk.getServersInShard(shardId);
@@ -353,7 +352,7 @@ public class TransactionManager {
         Response canProcessResp = ledger.canProcessTransaction(transaction);
         if (canProcessResp.statusCode.is2xxSuccessful()) {
             LOGGER.log(Level.INFO, String.format("tryProcessTransactionLocally: Transaction can be processed. Will register and broadcast results."));
-            ledger.registerTransaction(transaction);
+            ledger.performTransaction(transaction);
             List<String> interestedShards = new ArrayList<>();
             for (Transfer transfer : transaction.getOutputs()) {
                 String responsibleShard = this.getResponsibleShard(transfer.getAddress());

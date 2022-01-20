@@ -6,6 +6,7 @@ import model.Transaction;
 import model.Transfer;
 import model.UTxO;
 import org.springframework.http.HttpStatus;
+import zookeeper.ZooKeeperClient;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -13,8 +14,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import static constants.Constants.GENESIS_ADDRESS;
+import static constants.Constants.GENESIS_TRANSACTION_ID;
+
 public class TransactionLedger {
     private static final Logger LOGGER = Logger.getLogger(TypeData.ClassName.class.getName());
+    final private ZooKeeperClient zk;
+
     /////////////////////////// History ///////////////////////////
     // Maps each TransactionId to a Transaction object for it.
     // It contains transactions that the sender/receiver of them is handled by this shard.
@@ -26,16 +32,22 @@ public class TransactionLedger {
     // processed a transaction giving the user new Transfers.
     final private Map<String, Set<UTxO>> balances = new HashMap<>();
 
+    public TransactionLedger(ZooKeeperClient zk) {
+        this.zk = zk;
+    }
+
     public void addGenesisBlockToLedger() {
         List<UTxO> inputs = new ArrayList<>();
         List<Transfer> outputs = new ArrayList<>();
-        outputs.add(new Transfer("Genesis", 1000000)); // FIXME - Maximum coins
-        Transaction genesisTransaction = new Transaction("GenesisTx", 0, "", inputs, outputs);
+        outputs.add(new Transfer(GENESIS_ADDRESS, 1000000)); // FIXME - Maximum coins
+        Transaction genesisTransaction = new Transaction(GENESIS_TRANSACTION_ID, 0, "", inputs, outputs);
         history.put(genesisTransaction.getTransactionId(), genesisTransaction);
-        balances.put(genesisTransaction.getTransactionId(), Set.of(new UTxO("Genesis", "GenesisTx")));
+        HashSet<UTxO> currSet = new HashSet<>();
+        currSet.add(new UTxO(GENESIS_ADDRESS, GENESIS_TRANSACTION_ID));
+        balances.put(GENESIS_ADDRESS, currSet);
     }
 
-    synchronized public void registerTransaction(Transaction transaction) {
+    synchronized public void performTransaction(Transaction transaction) {
         if(history.containsKey(transaction.getTransactionId())){
             LOGGER.log(Level.FINEST,String.format("Transaction %s is already registered.", transaction.getTransactionId()));
             return;
@@ -50,13 +62,35 @@ public class TransactionLedger {
             balance.remove(inputUTxO);
         }
         // Add new UTxOs to users' balances
-        List<UTxO> newUTxOs = transaction.getOutputs().stream().map(transfer -> new UTxO(transfer.getAddress(), transaction.getTransactionId())).collect(Collectors.toList());
+        List<UTxO> newUTxOs = transaction.getOutputs().stream()
+                .filter(t -> zk.isResponsibleForAddress(t.getAddress()))
+                .map(transfer -> new UTxO(transfer.getAddress(), transaction.getTransactionId()))
+                .collect(Collectors.toList());
         for (UTxO uTxO : newUTxOs) {
             Set<UTxO> balance = balances.computeIfAbsent(uTxO.getAddress(), k -> new HashSet<>());
             balance.add(uTxO);
         }
         // Add transaction to history
         history.put(transaction.getTransactionId(), transaction);
+    }
+
+    synchronized public void recordTransaction(Transaction transaction) {
+        // Add transaction to history
+        if (history.containsKey(transaction.getTransactionId())){
+            LOGGER.log(Level.FINEST,String.format("Transaction %s is already registered.", transaction.getTransactionId()));
+            return;
+        } else {
+            history.put(transaction.getTransactionId(), transaction);
+        }
+        // Add new UTxOs to users' balances
+        List<UTxO> newUTxOs = transaction.getOutputs().stream()
+                .filter(t -> zk.isResponsibleForAddress(t.getAddress()))
+                .map(transfer -> new UTxO(transfer.getAddress(), transaction.getTransactionId()))
+                .collect(Collectors.toList());
+        for (UTxO uTxO : newUTxOs) {
+            Set<UTxO> balance = balances.computeIfAbsent(uTxO.getAddress(), k -> new HashSet<>());
+            balance.add(uTxO);
+        }
     }
 
     public List<Transaction> listTransactionsForAddress(String address, int limit) {
@@ -72,7 +106,11 @@ public class TransactionLedger {
     }
 
     public Set<UTxO> listUTxOsForAddress(String address) {
-        return balances.get(address);
+        Set<UTxO> ret = balances.get(address);
+        if (ret == null) {
+            return Set.of();
+        }
+        return ret;
     }
 
     public Response canProcessTransaction(Transaction transaction) {
@@ -115,9 +153,9 @@ public class TransactionLedger {
             }
             inputCoins = inputCoins.add(BigInteger.valueOf(transfer.get().getCoins()));
         }
-        BigInteger outputCoins = transaction.getOutputs().stream().map(t -> BigInteger.valueOf(t.getCoins())).reduce(BigInteger.ONE, BigInteger::add);
+        BigInteger outputCoins = transaction.getOutputs().stream().map(t -> BigInteger.valueOf(t.getCoins())).reduce(BigInteger.ZERO, BigInteger::add);
         if (!outputCoins.equals(inputCoins)) {
-            return new Response(HttpStatus.BAD_REQUEST, String.format("Input coins (%x) are not equal to Output coins (%x).", inputCoins, outputCoins));
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Input coins (%d) are not equal to Output coins (%d).", inputCoins, outputCoins));
         }
         return new Response(HttpStatus.OK, String.format("Transaction can be processed"));
     }

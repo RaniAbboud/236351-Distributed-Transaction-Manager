@@ -32,4 +32,5 @@ public interface ZooKeeperClient {
     void waitForDecision(String barrierId, String initiatorServerId) throws Exception;
     void leaveBarrier(String path, String[] shards) throws InterruptedException, KeeperException;
 
+    boolean isResponsibleForAddress(String address);
 }

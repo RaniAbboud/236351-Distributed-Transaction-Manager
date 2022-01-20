@@ -492,4 +492,14 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     public void setShardId(String shardId) {
         this.shardId = shardId;
     }
+
+    @Override
+    public boolean isResponsibleForAddress(String address) {
+        try {
+            return this.shardId.equals(this.getResponsibleShard(address));
+        } catch (InterruptedException | KeeperException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 }

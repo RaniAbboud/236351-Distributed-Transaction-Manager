@@ -12,4 +12,6 @@ public final class Constants {
     public static final String ENV_GRPC_ADDRESS = "grpc_address";
     public static final String ENV_REST_PORT = "rest_port";
 
+    public static final String GENESIS_ADDRESS = "GenesisAddress";
+    public static final String GENESIS_TRANSACTION_ID = "GenesisTxId";
 }
