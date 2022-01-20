@@ -1,0 +1,22 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="RestServer - 8083/8983" type="Application" factoryName="Application">
+    <envs>
+      <env name="grpc_address" value="localhost:8983" />
+      <env name="rest_port" value="8083" />
+      <env name="num_shards" value="3" />
+      <env name="num_servers_per_shard" value="3" />
+      <env name="zk_connection" value="localhost:2181,localhost:2182,localhost:2183" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="rest_api.RestServer" />
+    <module name="course236351-project-template.server.main" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="rest_api.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
