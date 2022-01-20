@@ -3,7 +3,7 @@ package transactionmanager;
 import model.Transaction;
 import model.Transfer;
 import model.UTxO;
-import rest_api.exception.TransactionIllegalException;
+import rest_api.exception.GeneralException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,32 +27,32 @@ public class TransactionLedger {
     public void validateTransaction(Transaction transaction) {
         // todo: validate inputs are unique
         if (!balances.get(transaction.getSourceAddress()).containsAll(transaction.getInputs())){
-            throw new TransactionIllegalException("Invalid inputs.");
+            // throw new GeneralException("Invalid inputs.");
         }
         long inputCoins = 0;
         for (UTxO utxo : transaction.getInputs()){
             if (!Objects.equals(utxo.getAddress(), transaction.getSourceAddress())) {
-                throw new TransactionIllegalException("Input doesn't match transaction source address.");
+                // throw new GeneralException("Input doesn't match transaction source address.");
             }
             Transaction transactionForUTxO = history.get(utxo.getTransactionId());
             if (transactionForUTxO == null){
-                throw new TransactionIllegalException("Invalid UTxO in inputs.");
+                // throw new GeneralException("Invalid UTxO in inputs.");
             }
             if (transactionForUTxO.getTimestamp() >= transaction.getTimestamp()){
-                throw new TransactionIllegalException("Invalid UTxO in inputs: UTxO belongs to a transaction with a later timestamp.");
+                // throw new GeneralException("Invalid UTxO in inputs: UTxO belongs to a transaction with a later timestamp.");
             }
             Optional<Transfer> transfer = transactionForUTxO.
                     getOutputs().
                     stream().
                     filter(t -> Objects.equals(t.getAddress(), utxo.getAddress())).findFirst();
             if (transfer.isEmpty()){
-                throw new TransactionIllegalException("Invalid UTxO in inputs.");
+                // throw new GeneralException("Invalid UTxO in inputs.");
             }
             inputCoins += transfer.get().getCoins();
         }
         long outputCoins = transaction.getOutputs().stream().mapToLong(Transfer::getCoins).sum();
         if (outputCoins != inputCoins) {
-            throw new TransactionIllegalException("Input coins are not equal to output coins.");
+            // throw new GeneralException("Input coins are not equal to output coins.");
         }
     }
 
