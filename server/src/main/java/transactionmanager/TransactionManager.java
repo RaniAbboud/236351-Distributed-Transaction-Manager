@@ -240,7 +240,7 @@ public class TransactionManager {
     }
 
     public Response.TransactionListResp handleListAddrTransactions(String sourceAddress, int limit) {
-        LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: listing UTxOs for address %s", sourceAddress));
+        LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: listing transactions for address %s. Limit %d", sourceAddress, limit));
         if (isResponsibleForAddress(sourceAddress)) {
             LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: Will handle request"));
             return new Response.TransactionListResp(HttpStatus.OK, "OK", new ArrayList<>(ledger.listTransactionsForAddress(sourceAddress, limit)));
@@ -258,8 +258,8 @@ public class TransactionManager {
      *  checking if an atomic list can be submitted or giving the entire history.
      */
     public void gRPCRecordSubmittedTransaction(Transaction transaction) {
-        // FIXME: Implement
-        return;
+        LOGGER.log(Level.INFO, String.format("gRPCRecordSubmittedTransaction: Recording %s", transaction.toString()));
+        ledger.registerTransaction(transaction);
     }
     public List<Response> gRPCCanProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList) {
         // FIXME: Implement

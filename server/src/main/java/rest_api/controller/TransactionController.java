@@ -81,16 +81,12 @@ public class TransactionController {
     @GetMapping("/users/{address}/transactions")
     public @ResponseBody List<Transaction> getAllTransactionsForUser(@PathVariable String address,
                         @RequestParam(required = false, defaultValue = limitParamDefault) int limit) {
-        // FIXME
-        // return transactionManager.getAllTransactionsForUser(address, limit);
-        return null;
+        return transactionManager.handleListAddrTransactions(address, limit).transactionsList;
     }
 
     @GetMapping("/users/{address}/utxos")
     public @ResponseBody List<UTxO> getAllUtxosForUser(@PathVariable String address) {
-        // FIXME
-        // return transactionManager.getAllUtxosForUser(address);
-        return null;
+        return transactionManager.handleListAddrUTxO(address).unusedUtxoList;
     }
 
     @GetMapping("/transactions")

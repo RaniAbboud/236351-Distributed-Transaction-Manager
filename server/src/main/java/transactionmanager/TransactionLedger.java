@@ -29,7 +29,7 @@ public class TransactionLedger {
     public void addGenesisBlockToLedger() {
         List<UTxO> inputs = new ArrayList<>();
         List<Transfer> outputs = new ArrayList<>();
-        outputs.add(new Transfer("Genesis", -1));
+        outputs.add(new Transfer("Genesis", 1000000)); // FIXME - Maximum coins
         Transaction genesisTransaction = new Transaction("GenesisTx", 0, "", inputs, outputs);
         history.put(genesisTransaction.getTransactionId(), genesisTransaction);
         balances.put(genesisTransaction.getTransactionId(), Set.of(new UTxO("Genesis", "GenesisTx")));
@@ -65,7 +65,10 @@ public class TransactionLedger {
                 .filter(t -> t.getSourceAddress().equals(address) || t.getOutputs().stream().anyMatch(transfer -> transfer.getAddress().equals(address)))
                 .collect(Collectors.toList());
         userTransactions.sort((t1, t2) -> (int) (t1.getTimestamp() - t2.getTimestamp()));
-        return userTransactions.subList(0, limit);
+        if ((limit != -1) && (limit < userTransactions.size())) {
+            userTransactions = userTransactions.subList(0, limit);
+        }
+        return userTransactions;
     }
 
     public Set<UTxO> listUTxOsForAddress(String address) {
@@ -85,8 +88,11 @@ public class TransactionLedger {
         if (transaction.getOutputs().size() != new HashSet<>(transaction.getOutputs()).size()) {
             return new Response(HttpStatus.BAD_REQUEST, String.format("Output transfers aren't unique."));
         }
+        if (balances.get(transaction.getSourceAddress()) == null) {
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Don't have any UTxOs for address %s", transaction.getSourceAddress()));
+        }
         if (!balances.get(transaction.getSourceAddress()).containsAll(transaction.getInputs())){
-            return new Response(HttpStatus.BAD_REQUEST, String.format("Don't have all transactions used in inputs."));
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Don't have all UTxOs used in inputs."));
         }
         if (transaction.getOutputs().stream().map(t -> t.getAddress()).collect(Collectors.toSet()).size() != transaction.getOutputs().size()) {
             return new Response(HttpStatus.BAD_REQUEST, String.format("Transfers are not to unique destinations."));
