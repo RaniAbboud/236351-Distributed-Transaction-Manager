@@ -81,7 +81,10 @@ public class TransactionManager {
         }
         LOGGER.log(Level.INFO, String.format("Finished configuration:"));
         LOGGER.log(Level.INFO, String.format("- myServerId=[%s]", myServerId));
-        LOGGER.log(Level.INFO, String.format("- myShardId=[%s]", myShardId)); LOGGER.log(Level.INFO, String.format("- shards=[%s]", shards)); LOGGER.log(Level.INFO, String.format("- serversAddresses=[%s]", serversAddresses)); LOGGER.log(Level.INFO, String.format("- sequencers=[%s]", sequencers));
+        LOGGER.log(Level.INFO, String.format("- myShardId=[%s]", myShardId));
+        LOGGER.log(Level.INFO, String.format("- shards=[%s]", shards));
+        LOGGER.log(Level.INFO, String.format("- serversAddresses=[%s]", serversAddresses));
+        LOGGER.log(Level.INFO, String.format("- sequencers=[%s]", sequencers));
 
         // Same serverBuilder will be used by all services
         ServerBuilder<?> serverBuilder = ServerBuilder.forPort(Integer.parseInt(serversAddresses.get(myServerId).split(":")[1]));
@@ -117,27 +120,6 @@ public class TransactionManager {
             e.printStackTrace();
         }
 
-
-        // FIXME FIXME tests delete
-        // FIXME FIXME tests delete
-        // FIXME FIXME tests delete
-        for (String s : List.of("Genesis", "Satoshi", "Sajy", "Rani", "Yaron", "Coco")) {
-            try {
-                LOGGER.log(Level.INFO, String.format("Responsible[%s] is %s", s, zk.getResponsibleShard(s)));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            } catch (KeeperException e) {
-                e.printStackTrace();
-            }
-        }
-        LOGGER.log(Level.INFO, String.format("Got timestamp: %d", this.getNewTimestamp()));
-        LOGGER.log(Level.INFO, String.format("Got timestamp: %d", this.getNewTimestamp()));
-        LOGGER.log(Level.INFO, String.format("Got timestamp: %d", this.getNewTimestamp()));
-        LOGGER.log(Level.INFO, String.format("Got timestamp: %d", this.getNewTimestamp()));
-        LOGGER.log(Level.INFO, String.format("Got timestamp: %d", this.getNewTimestamp()));
-        LOGGER.log(Level.INFO, String.format("Got timestamp: %d", this.getNewTimestamp()));
-
-
         // FIXME: MUST wait for setup to finish in ALL servers before finishing setup
         // Add a barrier
         try { sleep(3000); } catch (InterruptedException e) { e.printStackTrace(); }
@@ -160,15 +142,6 @@ public class TransactionManager {
      */
     public Response.TransactionResp handleTransaction(Request.TransactionRequest req) {
         // FIXME: Implement
-        LOGGER.log(Level.INFO, String.format("handleTransaction: Got request %s", req.toString()));
-        // FIXME FIXME tests delete
-        // FIXME FIXME tests delete
-        // FIXME FIXME tests delete
-        atomicBroadcast.broadcastListEntireHistory(List.of("shard-1"), 0, myServerId, 100);
-        atomicBroadcast.broadcastListEntireHistory(List.of("shard-2"), 1, myServerId, 101);
-        atomicBroadcast.broadcastListEntireHistory(List.of("shard-1", "shard-2"), 2, myServerId, 102);
-        atomicBroadcast.broadcastListEntireHistory(List.of("shard-2", "shard-0"), 3, myServerId, 103);
-        atomicBroadcast.broadcastListEntireHistory(List.of("shard-1", "shard-2", "shard-0"), 4, myServerId, 104);
         return null;
     }
     public Response.TransactionResp handleCoinTransfer(String sourceAddress, String targetAddress, long coins, String reqId) {
