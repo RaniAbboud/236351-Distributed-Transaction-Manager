@@ -286,8 +286,14 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         }
         while (true) {
             synchronized (locks.get(barrierId)) {
-                List<String> list = zk.getChildren(barriersPath + "/" + barrierId, createWatcher(barrierId, Watcher.Event.EventType.NodeChildrenChanged));
-                if (list.size() > 0) {
+                List<String> barrierChildren;
+                try{
+                    barrierChildren = zk.getChildren(barriersPath + "/" + barrierId, createWatcher(barrierId, Watcher.Event.EventType.NodeChildrenChanged));
+                } catch (KeeperException.NoNodeException e) {
+                    LOGGER.log(Level.INFO, "Barrier node has been deleted. Leaving barrier. BarrierId=" + barrierId);
+                    return;
+                }
+                if (barrierChildren.size() > 0) {
                     locks.get(barrierId).wait();
                 } else {
                     try {
@@ -429,7 +435,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         try {
             zk.delete(counterPath + "/child-" + indexStr, 0);
         } catch (InterruptedException | KeeperException e) {
-            LOGGER.log(Level.WARNING, "Failed to delete counter node after generating timestamp. Node path: " + counterPath + "/child-" + indexStr, e);
+            LOGGER.log(Level.WARNING, String.format("Failed to delete counter node after generating timestamp. Node path: %s/child-$s",counterPath,indexStr), e);
         }
 
         return index;

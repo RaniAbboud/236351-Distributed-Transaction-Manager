@@ -3,14 +3,11 @@ package transactionmanager;
 import atomicbroadcast.AtomicBroadcast;
 import grpcservice.RPCService;
 import grpcservice.RequestHandler;
-import grpcservice.RequestHandlerUtils;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.StatusRuntimeException;
 import javassist.bytecode.stackmap.TypeData;
 import model.*;
 import org.apache.zookeeper.KeeperException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import zookeeper.ZooKeeperClient;
 import zookeeper.ZooKeeperClientImpl;
@@ -20,8 +17,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static java.lang.Thread.sleep;
 
 @Service
 public class TransactionManager {
@@ -107,23 +102,32 @@ public class TransactionManager {
         this.rpcService.setup(serversAddresses);
         this.atomicBroadcast.setup(myServerId, myShardId, serversAddresses, shards, sequencers);
 
-        // Add Genesis Block to pool
+        // Wait for all servers to finish setup using the "initial barrier".
+        final String initialBarrierId = "intial-setup";
+        try{
+            zk.enterBarrier(initialBarrierId, zk.getShards().keySet().toArray(new String[0]));
+        } catch (InterruptedException | KeeperException e) {
+            LOGGER.log(Level.SEVERE, "failed to enter initial-setup barrier", e);
+        }
+        LOGGER.log(Level.INFO, String.format("Server %s has entered the initial barrier", myServerId));
+        // Add Genesis Block to the server's storage (in case this server in the responsible shard)
         try {
-            String genesisShardId = zk.getResponsibleShard("Genesis");
+            String genesisShardId = zk.getResponsibleShard("Genesis-Transaction");
             if (genesisShardId.equals(myShardId)) {
-                LOGGER.log(Level.INFO, String.format("My shard is responsible for Genesis Transaction"));
-                this.addGenesisBlock(this.getNewTimestamp());
+                LOGGER.log(Level.INFO, String.format("My shard is responsible for Genesis Transaction. Adding it to the ledger."));
+                this.addGenesisBlockToLedger(this.getNewTimestamp());
             } else {
                 LOGGER.log(Level.INFO, String.format("My shard isn't responsible for Genesis Transaction, %s is", genesisShardId));
             }
         } catch (InterruptedException | KeeperException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, String.format("Server $s (in shard $s) failed to register the Genesis Transaction.", myServerId, myShardId), e);
         }
-
-        // FIXME: MUST wait for setup to finish in ALL servers before finishing setup
-        // Add a barrier
-        try { sleep(3000); } catch (InterruptedException e) { e.printStackTrace(); }
-
+        try{
+            zk.leaveBarrier(initialBarrierId, zk.getShards().keySet().toArray(new String[0]));
+        } catch (InterruptedException | KeeperException e) {
+            LOGGER.log(Level.SEVERE, String.format("Server %s failed to leave initial-setup barrier", myServerId), e);
+        }
+        LOGGER.log(Level.INFO, String.format("Server %s has left the initial barrier", myServerId));
     }
 
     ////////////////////// Pending Requests ///////////////////////
@@ -214,7 +218,7 @@ public class TransactionManager {
     public long getNewTimestamp() {
         return zk.getTimestamp();
     }
-    private void addGenesisBlock(long timestamp) {
+    private void addGenesisBlockToLedger(long timestamp) {
         // FIXME: Should add the Genesis Block to the database since we are responsible for it.
         return;
     }
