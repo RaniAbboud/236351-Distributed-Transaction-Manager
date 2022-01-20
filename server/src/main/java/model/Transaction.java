@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.security.MessageDigest;
+import java.util.Objects;
 
 @Embeddable
 public class Transaction {
@@ -109,4 +110,16 @@ public class Transaction {
         return temp;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Transaction that = (Transaction) o;
+        return timestamp == that.timestamp && Objects.equals(transactionId, that.transactionId) && Objects.equals(sourceAddress, that.sourceAddress) && Objects.equals(inputs, that.inputs) && Objects.equals(outputs, that.outputs);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(transactionId, timestamp, sourceAddress, inputs, outputs);
+    }
 }

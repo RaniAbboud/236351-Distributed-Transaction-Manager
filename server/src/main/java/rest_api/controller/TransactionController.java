@@ -73,10 +73,9 @@ public class TransactionController {
 
     @PostMapping("/send_coins")
     public @ResponseBody Transaction sendCoins(@RequestBody SendCoinsRequestBody body) {
-        // FIXME: Where to get the reqId from ??
-        // FIXME
-        // transactionManager.sendCoins(body.sourceAddress, body.targetAddress, body.coins);
-        return null;
+        Response.TransactionResp resp = transactionManager.handleCoinTransfer(body.sourceAddress, body.targetAddress, body.coins, body.reqId);
+        handleErrors(resp);
+        return resp.transaction;
     }
 
     @GetMapping("/users/{address}/transactions")
@@ -102,12 +101,14 @@ public class TransactionController {
     }
 
     private static class SendCoinsRequestBody {
+        @JsonProperty("request_id")
+        public String reqId;
         @JsonProperty("source_address")
         public String sourceAddress;
         @JsonProperty("target_address")
         public String targetAddress;
         @JsonProperty("coins")
-        public int coins;
+        public long coins;
     }
 
 }

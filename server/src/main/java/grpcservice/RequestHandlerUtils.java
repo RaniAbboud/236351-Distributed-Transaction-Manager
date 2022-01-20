@@ -144,9 +144,9 @@ public class RequestHandlerUtils {
     }
     public static RespUnusedUTxOListMsg createUnusedUTxOListResp(Response.UnusedUTxOListResp resp) {
         RespUnusedUTxOListMsg.Builder builder = RespUnusedUTxOListMsg.newBuilder().setHttpResp(createHttpResponse(resp));
-        if (resp.transactionsList != null) {
-            builder.addAllTransactions(resp.transactionsList.stream().map(RequestHandlerUtils::createTransactionMsg).collect(Collectors.toList()));
-        }
+        // if (resp.transactionsList != null) {
+        //     builder.addAllTransactions(resp.transactionsList.stream().map(RequestHandlerUtils::createTransactionMsg).collect(Collectors.toList()));
+        // }
         if (resp.unusedUtxoList != null) {
             builder.addAllUtxos(resp.unusedUtxoList.stream().map(RequestHandlerUtils::createUTxOMsg).collect(Collectors.toList()));
         }

@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @Service
 public class TransactionManager {
@@ -190,7 +191,30 @@ public class TransactionManager {
 
 
     public Response.TransactionResp handleCoinTransfer(String address, String targetAddress, long coins, String reqId) {
-        // FIXME: Implement
+        // LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Received request %s", req.toString()));
+        // if (isResponsibleForAddress(req.inputs.get(0).getAddress())) {
+        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Will handle request"));
+        //     Transaction transaction = new Transaction(req.inputs, req.outputs);
+        //     String idempotencyKey = String.format("Transaction-%s", transaction.getTransactionId());
+        //     Integer pendingReqId = currPendingReqId.incrementAndGet();
+        //     PendingRequest pendingRequest = new PendingRequest();
+        //     pendingRequests.put(pendingReqId, pendingRequest);
+        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Broadcasting transaction [%s] to shard [%s] with key [%s]",
+        //             transaction.toString(), myShardId, idempotencyKey));
+        //     atomicBroadcast.broadcastTransaction(myShardId, transaction, idempotencyKey, myServerId, pendingReqId);
+        //     Response.TransactionResp resp = pendingRequest.waitDone();
+        //     pendingRequests.remove(pendingReqId);
+        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Got response %s", resp.toString()));
+        //     return resp;
+        //
+        //
+        // } else {
+        //     String responsibleShard = getResponsibleShard(req.inputs.get(0).getAddress());
+        //     List<String> responsibleServers = getServersInShard(responsibleShard);
+        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Won't handle request, will send to responsible shard: %s at servers: %s",
+        //             responsibleShard, responsibleServers.toString()));
+        //     return delegate.client.delegateHandleTransaction(responsibleServers, req);
+        // }
         return null;
     }
     public Response.TransactionListResp handleListEntireHistory(int limit) {
@@ -268,7 +292,10 @@ public class TransactionManager {
             LOGGER.log(Level.INFO, String.format("processTransaction: Request with key %s already processed"));
             if (origServerId.equals(myServerId)) {
                 LOGGER.log(Level.INFO, String.format("processTransaction: I will return the original response"));
-                this.pendingRequests.get(pendingReqId).finish(doneRequests.get(idempotencyKey));
+                Response resp = doneRequests.get(idempotencyKey);
+                resp.statusCode = HttpStatus.CONFLICT;
+                resp.reason = "Transaction already processed!!";
+                this.pendingRequests.get(pendingReqId).finish(resp);
             } else {
                 LOGGER.log(Level.INFO, String.format("processTransaction: Already processed and not originated by me, ignoring."));
             }
@@ -322,23 +349,30 @@ public class TransactionManager {
         }
     }
 
-    private Response.TransactionResp tryProcessTransactionLocally(Transaction trans) {
-        // FIXME: Implement
-        // 0. If already processed: - Need to check in db
-        // return the processing response along with an ALREADY_PROCESSED flag.
-        // 1. Verify it can be processed:
-        // if not, return a response with INVALID flag - maybe specify exactly why.
-        // 2. Move each input UTxO to the "used UTxOs"
-        // 3. Add the transaction to "transactions pool"
-        // 4. Add Transfers in his shard to the pool of "unused UTxOs"
-        // 5. Send transaction and transfers to the relevant shards (other than my shard) and wait until it is received by them.
-        // 6. Return a response of the transaction processing with SUBMITTED flag.
-        if (trans.getInputs().size() == 2) {
-            trans.setTimestamp(200);
-            return new Response.TransactionResp(HttpStatus.OK, "All good", trans);
+    private Response.TransactionResp tryProcessTransactionLocally(Transaction transaction) {
+        Response canProcessResp = ledger.canProcessTransaction(transaction);
+        if (canProcessResp.statusCode.is2xxSuccessful()) {
+            LOGGER.log(Level.INFO, String.format("tryProcessTransactionLocally: Transaction can be processed. Will register and broadcast results."));
+            ledger.registerTransaction(transaction);
+            List<String> interestedShards = new ArrayList<>();
+            for (Transfer transfer : transaction.getOutputs()) {
+                String responsibleShard = this.getResponsibleShard(transfer.getAddress());
+                if (!responsibleShard.equals(myShardId) && !interestedShards.contains(responsibleShard)) {
+                    interestedShards.add(responsibleShard);
+                }
+            }
+            if (interestedShards.size() != 0) {
+                List<String> interestedServers = interestedShards.stream().map(s -> this.getServersInShard(s))
+                        .flatMap(List::stream).collect(Collectors.toList());
+                LOGGER.log(Level.INFO, String.format("tryProcessTransactionLocally: Processed transaction will be broadcast to %s", interestedShards.toString()));
+                rpcService.client.recordSubmittedTransaction(interestedServers, transaction);
+            } else {
+                LOGGER.log(Level.INFO, String.format("tryProcessTransactionLocally: Processed transaction won't need to be broadcast"));
+            }
+            return new Response.TransactionResp(HttpStatus.OK, "Transaction Submitted", transaction);
         } else {
-            trans.setTimestamp(201);
-            return new Response.TransactionResp(HttpStatus.CONFLICT, "Cant do that", trans);
+            LOGGER.log(Level.INFO, String.format("tryProcessTransactionLocally: Transaction can't be processed because: %s", canProcessResp.reason));
+            return new Response.TransactionResp(canProcessResp.statusCode, canProcessResp.reason, null);
         }
     }
 

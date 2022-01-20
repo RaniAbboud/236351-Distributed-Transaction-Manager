@@ -1,11 +1,13 @@
 package transactionmanager;
 
 import javassist.bytecode.stackmap.TypeData;
+import model.Response;
 import model.Transaction;
 import model.Transfer;
 import model.UTxO;
-import rest_api.exception.TransactionIllegalException;
+import org.springframework.http.HttpStatus;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -34,7 +36,7 @@ public class TransactionLedger {
             Set<UTxO> balance = balances.get(inputUTxO.getAddress());
             if(balance == null){
                 // should never get here
-                throw new TransactionIllegalException("Bad transaction inputs. We might have a problem.");
+                throw new RuntimeException("Bad transaction inputs. We might have a problem.");
             }
             balance.remove(inputUTxO);
         }
@@ -61,36 +63,48 @@ public class TransactionLedger {
         return balances.get(address);
     }
 
-    public void validateTransaction(Transaction transaction) {
-        // todo: validate inputs are unique
-        if (!balances.get(transaction.getSourceAddress()).containsAll(transaction.getInputs())) {
-            throw new TransactionIllegalException("Invalid inputs.");
+    public Response canProcessTransaction(Transaction transaction) {
+        if (history.containsKey(transaction.getSourceAddress())) {
+            return new Response(HttpStatus.CONFLICT, String.format("Transaction already exists."));
         }
-        long inputCoins = 0;
-        for (UTxO utxo : transaction.getInputs()) {
-            if (!Objects.equals(utxo.getAddress(), transaction.getSourceAddress())) {
-                throw new TransactionIllegalException("Input doesn't match transaction source address.");
-            }
+        if (transaction.getSourceAddress() == null) {
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Can't resolve sourceAddress."));
+        }
+        if (transaction.getInputs().size() != new HashSet<>(transaction.getInputs()).size()) {
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Input UTxOs aren't unique."));
+        }
+        if (transaction.getOutputs().size() != new HashSet<>(transaction.getOutputs()).size()) {
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Output transfers aren't unique."));
+        }
+        if (!balances.get(transaction.getSourceAddress()).containsAll(transaction.getInputs())){
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Don't have all transactions used in inputs."));
+        }
+        if (transaction.getOutputs().stream().map(t -> t.getAddress()).collect(Collectors.toSet()).size() != transaction.getOutputs().size()) {
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Transfers are not to unique destinations."));
+        }
+        BigInteger inputCoins = BigInteger.valueOf(0);
+        for (UTxO utxo : transaction.getInputs()){
             Transaction transactionForUTxO = history.get(utxo.getTransactionId());
             if (transactionForUTxO == null) {
-                throw new TransactionIllegalException("Invalid UTxO in inputs.");
+                return new Response(HttpStatus.BAD_REQUEST, String.format("Invalid UTxO in inputs: UTxO belongs to a transaction that wasn't processed."));
             }
-            if (transactionForUTxO.getTimestamp() >= transaction.getTimestamp()) {
-                throw new TransactionIllegalException("Invalid UTxO in inputs: UTxO belongs to a transaction with a later timestamp.");
+            if (transactionForUTxO.getTimestamp() >= transaction.getTimestamp()){
+                return new Response(HttpStatus.BAD_REQUEST, String.format("Invalid UTxO in inputs: UTxO belongs to a transaction with a later timestamp."));
             }
             Optional<Transfer> transfer = transactionForUTxO.
                     getOutputs().
                     stream().
                     filter(t -> Objects.equals(t.getAddress(), utxo.getAddress())).findFirst();
-            if (transfer.isEmpty()) {
-                throw new TransactionIllegalException("Invalid UTxO in inputs.");
+            if (transfer.isEmpty()){
+                return new Response(HttpStatus.BAD_REQUEST, String.format("Invalid UTxO in inputs. Isn't an output of the given transaction."));
             }
-            inputCoins += transfer.get().getCoins();
+            inputCoins = inputCoins.add(BigInteger.valueOf(transfer.get().getCoins()));
         }
-        long outputCoins = transaction.getOutputs().stream().mapToLong(Transfer::getCoins).sum();
-        if (outputCoins != inputCoins) {
-            throw new TransactionIllegalException("Input coins are not equal to output coins.");
+        BigInteger outputCoins = transaction.getOutputs().stream().map(t -> BigInteger.valueOf(t.getCoins())).reduce(BigInteger.ONE, BigInteger::add);
+        if (!outputCoins.equals(inputCoins)) {
+            return new Response(HttpStatus.BAD_REQUEST, String.format("Input coins (%x) are not equal to Output coins (%x).", inputCoins, outputCoins));
         }
+        return new Response(HttpStatus.OK, String.format("Transaction can be processed"));
     }
 
 }
