@@ -5,14 +5,11 @@ import static org.junit.jupiter.api.parallel.ExecutionMode.CONCURRENT;
 
 import constants.Constants;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooKeeper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.Execution;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 //@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Execution(CONCURRENT)
@@ -37,7 +34,7 @@ public class ZooKeeperClientImplTest {
 //    @RepeatedTest(9)
     @Test
     @DisplayName("Test Registration")
-    void testRegister() throws InterruptedException {
+    void testRegister() throws InterruptedException, IOException {
         ZooKeeperClient zk = null;
         try {
             zk = new ZooKeeperClientImpl("localhost:2181");
@@ -58,7 +55,7 @@ public class ZooKeeperClientImplTest {
         }
         String barrierId = "barrier";
         try {
-            zk.enterBarrier(barrierId, shards);
+            zk.enterBarrier(barrierId, List.of(shards));
         } catch (KeeperException e) {
             Assertions.fail(e);
         }
@@ -71,7 +68,7 @@ public class ZooKeeperClientImplTest {
         }
         Assertions.assertTrue(zk.getServerId().startsWith("server-"));
         try {
-            zk.leaveBarrier(barrierId, shards);
+            zk.leaveBarrier(barrierId, List.of(shards));
         } catch (KeeperException e) {
             Assertions.fail(e);
         }

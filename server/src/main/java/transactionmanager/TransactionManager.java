@@ -110,7 +110,7 @@ public class TransactionManager {
         // Wait for all servers to finish setup using the "initial barrier".
         final String initialBarrierId = "intial-setup";
         try{
-            zk.enterBarrier(initialBarrierId, zk.getShards().keySet().toArray(new String[0]));
+            zk.enterBarrier(initialBarrierId, List.of(zk.getShards().keySet().toArray(new String[0])));
         } catch (InterruptedException | KeeperException e) {
             LOGGER.log(Level.SEVERE, "failed to enter initial-setup barrier", e);
         }
@@ -128,7 +128,7 @@ public class TransactionManager {
             LOGGER.log(Level.SEVERE, String.format("Server $s (in shard $s) failed to register the Genesis Transaction.", myServerId, myShardId), e);
         }
         try{
-            zk.leaveBarrier(initialBarrierId, zk.getShards().keySet().toArray(new String[0]));
+            zk.leaveBarrier(initialBarrierId, List.of(zk.getShards().keySet().toArray(new String[0])));
         } catch (InterruptedException | KeeperException e) {
             LOGGER.log(Level.SEVERE, String.format("Server %s failed to leave initial-setup barrier", myServerId), e);
         }

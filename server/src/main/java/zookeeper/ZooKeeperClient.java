@@ -25,12 +25,14 @@ public interface ZooKeeperClient {
 
     String getResponsibleShard(String address) throws InterruptedException, KeeperException;
 
+    boolean atomicCommitWait(String atomicTxnListId, String initiatorServer, boolean vote, List<String> votingShards) throws Exception;
+
     long getTimestamp();
 
-    void enterBarrier(String barrierId, String[] shards) throws KeeperException, InterruptedException;
+    void enterBarrier(String barrierId, List<String> shards) throws KeeperException, InterruptedException, IOException;
     void setDecision(String barrierId, boolean decision) throws InterruptedException, KeeperException, IOException;
-    void waitForDecision(String barrierId, String initiatorServerId) throws Exception;
-    void leaveBarrier(String path, String[] shards) throws InterruptedException, KeeperException;
+    boolean waitForDecision(String barrierId, String initiatorServerId) throws Exception;
+    void leaveBarrier(String path, List<String> shards) throws InterruptedException, KeeperException;
 
     boolean isResponsibleForAddress(String address);
 }
