@@ -118,7 +118,7 @@ public class TransactionManager {
             String genesisShardId = zk.getResponsibleShard("Genesis-Transaction");
             if (genesisShardId.equals(myShardId)) {
                 LOGGER.log(Level.INFO, String.format("My shard is responsible for Genesis Transaction. Adding it to the ledger."));
-                this.addGenesisBlockToLedger();
+                ledger.addGenesisBlockToLedger();
             } else {
                 LOGGER.log(Level.INFO, String.format("My shard isn't responsible for Genesis Transaction, %s is", genesisShardId));
             }
@@ -376,13 +376,5 @@ public class TransactionManager {
         }
     }
 
-    private void addGenesisBlockToLedger() {
-        List<UTxO> inputs = new ArrayList<>();
-        inputs.add(new UTxO("0","0"));
-        List<Transfer> outputs = new ArrayList<>();
-        outputs.add(new Transfer("0", 2^64 - 1));
-        Transaction genesisTransaction = new Transaction("0", 0, "", inputs, outputs); // TODO: check that the values are right
-        ledger.registerTransaction(genesisTransaction);
-    }
 
 }

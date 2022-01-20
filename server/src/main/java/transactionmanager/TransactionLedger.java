@@ -26,6 +26,15 @@ public class TransactionLedger {
     // processed a transaction giving the user new Transfers.
     final private Map<String, Set<UTxO>> balances = new HashMap<>();
 
+    public void addGenesisBlockToLedger() {
+        List<UTxO> inputs = new ArrayList<>();
+        List<Transfer> outputs = new ArrayList<>();
+        outputs.add(new Transfer("Genesis", -1));
+        Transaction genesisTransaction = new Transaction("GenesisTx", 0, "", inputs, outputs);
+        history.put(genesisTransaction.getTransactionId(), genesisTransaction);
+        balances.put(genesisTransaction.getTransactionId(), Set.of(new UTxO("Genesis", "GenesisTx")));
+    }
+
     synchronized public void registerTransaction(Transaction transaction) {
         if(history.containsKey(transaction.getTransactionId())){
             LOGGER.log(Level.FINEST,String.format("Transaction %s is already registered.", transaction.getTransactionId()));
