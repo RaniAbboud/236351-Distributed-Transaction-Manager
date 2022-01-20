@@ -122,4 +122,15 @@ public class Transaction {
     public int hashCode() {
         return Objects.hash(transactionId, timestamp, sourceAddress, inputs, outputs);
     }
+
+    @Override
+    public String toString() {
+        return "Transaction{" +
+                "transactionId='" + transactionId + '\'' +
+                ", timestamp=" + timestamp +
+                ", sourceAddress='" + sourceAddress + '\'' +
+                ", inputs=" + inputs +
+                ", outputs=" + outputs +
+                '}';
+    }
 }

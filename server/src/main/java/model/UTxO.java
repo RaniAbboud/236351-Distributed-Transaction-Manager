@@ -49,4 +49,12 @@ public class UTxO {
     public int hashCode() {
         return Objects.hash(address, transactionId);
     }
+
+    @Override
+    public String toString() {
+        return "UTxO{" +
+                "address='" + address + '\'' +
+                ", transactionId='" + transactionId + '\'' +
+                '}';
+    }
 }
