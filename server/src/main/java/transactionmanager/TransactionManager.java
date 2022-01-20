@@ -191,34 +191,38 @@ public class TransactionManager {
         }
     }
 
-
-    public Response.TransactionResp handleCoinTransfer(String address, String targetAddress, long coins, String reqId) {
-        // LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Received request %s", req.toString()));
-        // if (zk.isResponsibleForAddress(req.inputs.get(0).getAddress())) {
-        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Will handle request"));
-        //     Transaction transaction = new Transaction(req.inputs, req.outputs);
-        //     String idempotencyKey = String.format("Transaction-%s", transaction.getTransactionId());
-        //     Integer pendingReqId = currPendingReqId.incrementAndGet();
-        //     PendingRequest pendingRequest = new PendingRequest();
-        //     pendingRequests.put(pendingReqId, pendingRequest);
-        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Broadcasting transaction [%s] to shard [%s] with key [%s]",
-        //             transaction.toString(), myShardId, idempotencyKey));
-        //     atomicBroadcast.broadcastTransaction(myShardId, transaction, idempotencyKey, myServerId, pendingReqId);
-        //     Response.TransactionResp resp = pendingRequest.waitDone();
-        //     pendingRequests.remove(pendingReqId);
-        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Got response %s", resp.toString()));
-        //     return resp;
-        //
-        //
-        // } else {
-        //     String responsibleShard = getResponsibleShard(req.inputs.get(0).getAddress());
-        //     List<String> responsibleServers = getServersInShard(responsibleShard);
-        //     LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Won't handle request, will send to responsible shard: %s at servers: %s",
-        //             responsibleShard, responsibleServers.toString()));
-        //     return delegate.client.delegateHandleTransaction(responsibleServers, req);
-        // }
-        return null;
+    public Response.TransactionResp handleCoinTransfer(String sourceAddress, String targetAddress, long coins, String reqId) {
+        LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Received request from %s to %s with %d coins and id %s",
+                        sourceAddress, targetAddress, coins, reqId));
+        if (zk.isResponsibleForAddress(sourceAddress)) {
+            LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Will handle request"));
+            Response.TransactionResp transaction = ledger.createTransactionForCoinTransfer(sourceAddress, targetAddress, coins);
+            if (transaction.statusCode.is2xxSuccessful()) {
+                LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Managed to create a transaction"));
+                String idempotencyKey = String.format("CoinTransfer-%s-%s-%s-%d", reqId, sourceAddress, targetAddress, coins);
+                Integer pendingReqId = currPendingReqId.incrementAndGet();
+                PendingRequest pendingRequest = new PendingRequest();
+                pendingRequests.put(pendingReqId, pendingRequest);
+                LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Broadcasting transaction [%s] to shard [%s] with key [%s]",
+                        transaction.transaction.toString(), myShardId, idempotencyKey));
+                atomicBroadcast.broadcastTransaction(myShardId, transaction.transaction, idempotencyKey, myServerId, pendingReqId);
+                Response.TransactionResp resp = pendingRequest.waitDone();
+                pendingRequests.remove(pendingReqId);
+                LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Got response %s", resp.toString()));
+                return resp;
+            } else {
+                LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Couldn't satisfy the Coin Transfer"));
+                return transaction;
+            }
+        } else {
+            String responsibleShard = getResponsibleShard(sourceAddress);
+            List<String> responsibleServers = getServersInShard(responsibleShard);
+            LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Won't handle request, will send to responsible shard: %s at servers: %s",
+                    responsibleShard, responsibleServers.toString()));
+            return delegate.client.delegateHandleCoinTransfer(responsibleServers, sourceAddress, targetAddress, coins, reqId);
+        }
     }
+
     public Response.TransactionListResp handleListEntireHistory(int limit) {
         // FIXME: Implement
         return null;

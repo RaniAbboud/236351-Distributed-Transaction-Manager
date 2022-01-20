@@ -157,7 +157,38 @@ public class TransactionLedger {
         if (!outputCoins.equals(inputCoins)) {
             return new Response(HttpStatus.BAD_REQUEST, String.format("Input coins (%d) are not equal to Output coins (%d).", inputCoins, outputCoins));
         }
-        return new Response(HttpStatus.OK, String.format("Transaction can be processed"));
+        return new Response(HttpStatus.CREATED, String.format("Transaction can be processed"));
     }
 
+    public Response.TransactionResp createTransactionForCoinTransfer(String sourceAddress, String targetAddress, long coins) {
+        if (coins < 0) {
+            return new Response.TransactionResp(HttpStatus.BAD_REQUEST, String.format("Illegal coins value %d", coins), null);
+        }
+        Set<UTxO> unusedUTxO = this.listUTxOsForAddress(sourceAddress);
+        if (unusedUTxO.size() == 0) {
+            return new Response.TransactionResp(HttpStatus.BAD_REQUEST, String.format("Source %s has no UTxOs", sourceAddress), null);
+        }
+        long currSum = 0;
+        List<UTxO> inputs = new ArrayList<>();
+        for (UTxO currUTxO : unusedUTxO) {
+            if (currSum >= coins) {
+                break;
+            }
+            inputs.add(currUTxO);
+            currSum += history.get(currUTxO.getTransactionId()).getOutputs().stream().
+                    filter(t -> Objects.equals(t.getAddress(), currUTxO.getAddress())).findFirst().get().getCoins();
+        }
+        if (currSum >= coins) {
+            List<Transfer> outputs = new ArrayList<>();
+            outputs.add(new Transfer(targetAddress, coins));
+            if (currSum - coins > 0) {
+                outputs.add(new Transfer(sourceAddress, currSum - coins));
+            }
+            Transaction transaction = new Transaction(inputs, outputs);
+            return new Response.TransactionResp(HttpStatus.OK, String.format("OK"), transaction);
+        } else {
+            return new Response.TransactionResp(HttpStatus.BAD_REQUEST, String.format("Source %s has only %d coins out of needed %d",
+                    sourceAddress, currSum, coins), null);
+        }
+    }
 }

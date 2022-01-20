@@ -48,4 +48,11 @@ public class Transfer {
         return Objects.hash(address, coins);
     }
 
+    @Override
+    public String toString() {
+        return "Transfer{" +
+                "address='" + address + '\'' +
+                ", coins=" + coins +
+                '}';
+    }
 }
