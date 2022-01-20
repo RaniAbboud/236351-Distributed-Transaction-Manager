@@ -275,7 +275,7 @@ public class TransactionManager {
         } else {
             LOGGER.log(Level.INFO, String.format("processTransaction: Need to process transaction"));
             Response.TransactionResp resp = this.tryProcessTransactionLocally(trans);
-            if (resp.statusCode == HttpStatus.OK) {
+            if (resp.statusCode.is2xxSuccessful()) {
                 LOGGER.log(Level.INFO, String.format("processTransaction: Transaction processed successfully"));
                 this.doneRequests.put(idempotencyKey, resp);
             } else {
@@ -333,8 +333,13 @@ public class TransactionManager {
         // 4. Add Transfers in his shard to the pool of "unused UTxOs"
         // 5. Send transaction and transfers to the relevant shards (other than my shard) and wait until it is received by them.
         // 6. Return a response of the transaction processing with SUBMITTED flag.
-        trans.setTimestamp(1000);
-        return new Response.TransactionResp(HttpStatus.OK, "All good", trans);
+        if (trans.getInputs().size() == 2) {
+            trans.setTimestamp(200);
+            return new Response.TransactionResp(HttpStatus.OK, "All good", trans);
+        } else {
+            trans.setTimestamp(201);
+            return new Response.TransactionResp(HttpStatus.CONFLICT, "Cant do that", trans);
+        }
     }
 
     private void addGenesisBlockToLedger() {

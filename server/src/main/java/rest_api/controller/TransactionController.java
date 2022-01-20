@@ -8,6 +8,9 @@ import model.Transaction;
 import model.UTxO;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.web.bind.annotation.*;
+import rest_api.exception.BadRequestException;
+import rest_api.exception.ConflictException;
+import rest_api.exception.NotFoundException;
 import transactionmanager.TransactionManager;
 
 import java.io.IOException;
@@ -35,6 +38,16 @@ public class TransactionController {
     private TransactionManager transactionManager = null;
     private static final String limitParamDefault = "-1";
 
+    /** Handle error responses */
+    public void handleErrors(Response resp) {
+        switch (resp.statusCode) {
+            case OK: case CREATED: break;
+            case BAD_REQUEST: throw new BadRequestException(resp.reason);
+            case CONFLICT: throw new ConflictException(resp.reason);
+            case NOT_FOUND: throw new NotFoundException(resp.reason);
+            default: throw new RuntimeException(String.format("Unknown exception type %s", resp.statusCode.toString()));
+        }
+    }
 
     /**
      * The POST /transactions endpoint allows submitting either:
@@ -50,7 +63,8 @@ public class TransactionController {
         if (transactions.size() == 1) {
             Request.TransactionRequest transactionReq = transactions.get(0);
             Response.TransactionResp resp = transactionManager.handleTransaction(transactionReq);
-            // FIXME: Handle response !!
+            handleErrors(resp);
+            return resp.transaction;
         } else {
             // FIXME
         }
