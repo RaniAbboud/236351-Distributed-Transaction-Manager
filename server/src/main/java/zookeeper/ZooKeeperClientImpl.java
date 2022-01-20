@@ -68,7 +68,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     private int numShards;
     private int numServersPerShard;
 
-    private final Map<String, Integer> locks = new ConcurrentHashMap<>();
+    private volatile Map<String, String> locks = new ConcurrentHashMap<>();
     final private String shardsPath = "/shards";
     final private String serversPath = "/servers";
     final private String barriersPath = "/barriers";
@@ -86,7 +86,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         class IdWatcher implements Watcher {
             @Override
             public void process(WatchedEvent event) {
-                Integer mutex = locks.get(id);
+                String mutex = locks.get(id);
                 synchronized (mutex) {
                     if (eventType == null || eventType == event.getType()){
                         mutex.notify();
@@ -204,7 +204,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     public void waitForAllServersToRegister() throws InterruptedException, KeeperException {
         int numServers = this.numShards * this.numServersPerShard;
         String lockId = "ALL_SERVERS_REGISTER_REGISTERED";
-        this.locks.put(lockId, new Integer(1)); // create a mutex for this watch
+        this.locks.put(lockId, lockId); // create a mutex for this watch
         while (true) {
             synchronized (locks.get(lockId)) {
                 List<String> list = zk.getChildren(this.serversPath, createWatcher(lockId, Watcher.Event.EventType.NodeChildrenChanged));
@@ -226,7 +226,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     @Override
     public void waitForDecision(String barrierId, String initiatorServerId) throws Exception {
         String watchId = barrierId + "-decision"; // setting a different watchId than the one we're using for the barrier itself.
-        this.locks.put(watchId, new Integer(1)); // create a mutex for this watch
+        this.locks.put(watchId, watchId); // create a mutex for this watch
         watchServer(initiatorServerId, watchId);
         Stat stat = zk.exists(barriersPath + "/" + barrierId, createWatcher(watchId, Watcher.Event.EventType.NodeDataChanged));
         if (stat == null) {
@@ -250,7 +250,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     @Override
     public void enterBarrier(String barrierId, String[] shards) throws KeeperException, InterruptedException {
         String barrierPath = barriersPath + "/" + barrierId;
-        this.locks.put(barrierId, new Integer(1)); // create a mutex for this barrier
+        this.locks.put(barrierId, barrierId); // create a mutex for this barrier
         try {
             zk.create(barrierPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
         } catch (KeeperException.NodeExistsException e) {

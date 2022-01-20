@@ -39,7 +39,7 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
     volatile Map<String, String> sequencers = new ConcurrentHashMap<>();
 
     /** Proposals Queue: Contains all the proposals for the Sequencer to schedule */
-    private class BroadcastMsgAndFlag {
+    private static class BroadcastMsgAndFlag {
         BroadcastMsg msg;
         volatile boolean scheduledSignal;
         public BroadcastMsgAndFlag(BroadcastMsg msg) {

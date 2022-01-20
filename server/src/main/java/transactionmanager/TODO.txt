@@ -1,5 +1,4 @@
 TODO:
-    0. See the Integer removed and value class locks problem.
     1. Implement docker and a way to run variable number of servers/shards.
     2. Maybe implement some kind of client that can issue random requests and print the req/resp.
     3. Implement TransactionManager functions.
