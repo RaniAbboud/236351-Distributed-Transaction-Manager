@@ -117,7 +117,7 @@ public class TransactionManager {
             String genesisShardId = zk.getResponsibleShard("Genesis-Transaction");
             if (genesisShardId.equals(myShardId)) {
                 LOGGER.log(Level.INFO, String.format("My shard is responsible for Genesis Transaction. Adding it to the ledger."));
-                this.addGenesisBlockToLedger(this.getNewTimestamp());
+                this.addGenesisBlockToLedger();
             } else {
                 LOGGER.log(Level.INFO, String.format("My shard isn't responsible for Genesis Transaction, %s is", genesisShardId));
             }
@@ -189,7 +189,7 @@ public class TransactionManager {
     }
 
 
-    public Response.TransactionResp handleCoinTransfer(String sourceAddress, String targetAddress, long coins, String reqId) {
+    public Response.TransactionResp handleCoinTransfer(String address, String targetAddress, long coins, String reqId) {
         // FIXME: Implement
         return null;
     }
@@ -201,15 +201,32 @@ public class TransactionManager {
         // FIXME: Implement
         return null;
     }
-    public Response.UnusedUTxOListResp handleListAddrUTxO(String sourceAddress) {
-        // FIXME: Implement
-        return null;
-    }
-    public Response.TransactionListResp handleListAddrTransactions(String sourceAddress, int limit) {
-        // FIXME: Implement
-        return null;
+
+    public Response.UnusedUTxOListResp handleListAddrUTxO(String address) {
+        LOGGER.log(Level.INFO, String.format("handleListAddrUTxO: listing UTxOs for address %s", address));
+        if (isResponsibleForAddress(address)) {
+            LOGGER.log(Level.INFO, String.format("handleListAddrUTxO: Will handle request"));
+            return new Response.UnusedUTxOListResp(HttpStatus.OK, "OK", new ArrayList<>(ledger.listUTxOsForAddress(address)));
+        }
+        String responsibleShard = getResponsibleShard(address);
+        List<String> responsibleServers = getServersInShard(responsibleShard);
+        LOGGER.log(Level.INFO, String.format("handleListAddrUTxO: Won't handle request, will send to responsible shard: %s at servers: %s",
+                responsibleShard, responsibleServers.toString()));
+        return delegate.client.delegateHandleListAddrUTxO(responsibleServers, address);
     }
 
+    public Response.TransactionListResp handleListAddrTransactions(String sourceAddress, int limit) {
+        LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: listing UTxOs for address %s", sourceAddress));
+        if (isResponsibleForAddress(sourceAddress)) {
+            LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: Will handle request"));
+            return new Response.TransactionListResp(HttpStatus.OK, "OK", new ArrayList<>(ledger.listTransactionsForAddress(sourceAddress, limit)));
+        }
+        String responsibleShard = getResponsibleShard(sourceAddress);
+        List<String> responsibleServers = getServersInShard(responsibleShard);
+        LOGGER.log(Level.INFO, String.format("handleListAddrTransactions: Won't handle request, will send to responsible shard: %s at servers: %s",
+                responsibleShard, responsibleServers.toString()));
+        return delegate.client.delegateHandleListAddrTransactions(responsibleServers, sourceAddress, limit);
+    }
 
     /**
      *  RPC services:
@@ -320,9 +337,13 @@ public class TransactionManager {
         return new Response.TransactionResp(HttpStatus.OK, "All good", trans);
     }
 
-    private void addGenesisBlockToLedger(long timestamp) {
-        // FIXME: Should add the Genesis Block to the database since we are responsible for it.
-        return;
+    private void addGenesisBlockToLedger() {
+        List<UTxO> inputs = new ArrayList<>();
+        inputs.add(new UTxO("0","0"));
+        List<Transfer> outputs = new ArrayList<>();
+        outputs.add(new Transfer("0", 2^64 - 1));
+        Transaction genesisTransaction = new Transaction("0", 0, "", inputs, outputs); // TODO: check that the values are right
+        ledger.registerTransaction(genesisTransaction);
     }
 
 }

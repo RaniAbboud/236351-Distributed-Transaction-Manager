@@ -98,9 +98,9 @@ public class RequestHandlerUtils {
                 HttpStatus.resolve(resp.getHttpResp().getStatusCode()),
                 resp.getHttpResp().getReason(),
                 (resp.getUtxosCount() != 0) ? resp.getUtxosList().stream()
-                        .map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()) : null,
-                (resp.getTransactionsCount() != 0) ? resp.getTransactionsList().stream()
-                        .map(RequestHandlerUtils::createTransaction).collect(Collectors.toList()) : null
+                        .map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()) : null
+//                ,(resp.getTransactionsCount() != 0) ? resp.getTransactionsList().stream()
+//                        .map(RequestHandlerUtils::createTransaction).collect(Collectors.toList()) : null
         );
     }
 

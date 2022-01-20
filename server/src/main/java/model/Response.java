@@ -30,10 +30,10 @@ public class Response {
         }
     }
 
-    public static class UnusedUTxOListResp extends TransactionListResp {
+    public static class UnusedUTxOListResp extends Response {
         public List<UTxO> unusedUtxoList;
-        public UnusedUTxOListResp(HttpStatus statusCode, String reason, List<UTxO> unusedUtxoList, List<Transaction> transactionsList) {
-            super(statusCode, reason, transactionsList);
+        public UnusedUTxOListResp(HttpStatus statusCode, String reason, List<UTxO> unusedUtxoList) {
+            super(statusCode, reason);
             this.unusedUtxoList = unusedUtxoList;
         }
     }

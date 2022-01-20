@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.persistence.Embeddable;
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import java.util.Objects;
 
 @Embeddable
 public class UTxO {
@@ -36,4 +37,16 @@ public class UTxO {
         this.transactionId = transactionId;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        UTxO uTxO = (UTxO) o;
+        return Objects.equals(address, uTxO.address) && Objects.equals(transactionId, uTxO.transactionId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(address, transactionId);
+    }
 }

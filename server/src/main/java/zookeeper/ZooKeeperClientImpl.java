@@ -438,7 +438,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
             LOGGER.log(Level.WARNING, String.format("Failed to delete counter node after generating timestamp. Node path: %s/child-$s",counterPath,indexStr), e);
         }
 
-        return index;
+        return index+1;
     }
 
     private void createNodeIfNotExists(String path, byte[] data, List<ACL> acl, CreateMode createMode) throws InterruptedException, KeeperException {
