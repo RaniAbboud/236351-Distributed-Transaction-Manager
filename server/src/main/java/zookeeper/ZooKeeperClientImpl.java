@@ -302,7 +302,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     }
 
     @Override
-    public void leaveBarrier(String barrierId, List<String> shards) throws InterruptedException, KeeperException {
+    public void leaveBarrier(String barrierId) throws InterruptedException, KeeperException {
         try {
             zk.delete(barriersPath + "/" + barrierId + "/" + serverId, -1);
         } catch (KeeperException.NoNodeException e) {
@@ -416,7 +416,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         } else {
             decision = waitForDecision(atomicTxnListId, initiatorServer);
         }
-        leaveBarrier(atomicTxnListId, votingShards);
+        leaveBarrier(atomicTxnListId);
         return decision;
     }
 

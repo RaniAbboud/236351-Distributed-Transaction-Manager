@@ -68,7 +68,7 @@ public class ZooKeeperClientImplTest {
         }
         Assertions.assertTrue(zk.getServerId().startsWith("server-"));
         try {
-            zk.leaveBarrier(barrierId, List.of(shards));
+            zk.leaveBarrier(barrierId);
         } catch (KeeperException e) {
             Assertions.fail(e);
         }
