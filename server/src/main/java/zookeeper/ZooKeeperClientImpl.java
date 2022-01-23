@@ -317,7 +317,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
                     return;
                 } else if (readyNode != null){
                     return;
-                } else if (initiatorServerNode == null){
+                } else if (initiatorServerNode == null && !initiatorServerId.equals("")){
                     return;
                 }
                 locks.get(barrierId).wait();
@@ -342,7 +342,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
                     LOGGER.log(Level.INFO, "Barrier node has been deleted. Leaving barrier. BarrierId=" + barrierId);
                     return;
                 }
-                if (barrierChildren.size() > 0) {
+                if (barrierChildren.size() > 1) {
                     locks.get(barrierId).wait();
                 } else {
                     try {
