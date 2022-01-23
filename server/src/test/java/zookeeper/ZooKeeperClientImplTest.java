@@ -55,7 +55,7 @@ public class ZooKeeperClientImplTest {
         }
         String barrierId = "barrier";
         try {
-            zk.enterBarrier(barrierId, List.of(shards));
+            zk.enterBarrier(barrierId, List.of(shards), "");
         } catch (KeeperException e) {
             Assertions.fail(e);
         }

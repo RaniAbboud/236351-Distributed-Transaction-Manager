@@ -29,7 +29,7 @@ public interface ZooKeeperClient {
 
     long getTimestamp();
 
-    void enterBarrier(String barrierId, List<String> shards) throws KeeperException, InterruptedException, IOException;
+    void enterBarrier(String barrierId, List<String> shards, String initiatorServerId) throws KeeperException, InterruptedException, IOException;
     void setDecision(String barrierId, boolean decision) throws InterruptedException, KeeperException, IOException;
     boolean waitForDecision(String barrierId, String initiatorServerId) throws Exception;
     void leaveBarrier(String path) throws InterruptedException, KeeperException;
