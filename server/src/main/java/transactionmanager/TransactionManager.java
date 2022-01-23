@@ -10,6 +10,7 @@ import model.*;
 import org.apache.zookeeper.KeeperException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import rest_api.exception.BadRequestException;
 import zookeeper.ZooKeeperClient;
 import zookeeper.ZooKeeperClientImpl;
 
@@ -137,7 +138,7 @@ public class TransactionManager {
             LOGGER.log(Level.SEVERE, String.format("Server $s (in shard $s) failed to register the Genesis Transaction.", myServerId, myShardId), e);
         }
         try{
-            zk.leaveBarrier(initialBarrierId, allShards);
+            zk.leaveBarrier(initialBarrierId);
         } catch (InterruptedException | KeeperException e) {
             LOGGER.log(Level.SEVERE, String.format("Server %s failed to leave initial-setup barrier", myServerId), e);
         }
@@ -422,7 +423,7 @@ public class TransactionManager {
                         .collect(Collectors.toList());
             }
             LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Leaving Barrier %s", barrierId));
-            zk.leaveBarrier(barrierId, shards);
+            zk.leaveBarrier(barrierId);
             LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Left Barrier %s", barrierId));
             if (myServerId.equals(origServerId)) {
                 LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Finished collecting transactions: %s", collectedTransactions.toString()));
