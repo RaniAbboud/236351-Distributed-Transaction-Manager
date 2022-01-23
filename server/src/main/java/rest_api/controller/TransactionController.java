@@ -91,9 +91,7 @@ public class TransactionController {
 
     @GetMapping("/transactions")
     public @ResponseBody List<Transaction> getAllTransactions(@RequestParam(required = false, defaultValue = limitParamDefault) int limit) {
-        // FIXME
-        // return transactionManager.getAllTransactions(limit);
-        return null;
+        return transactionManager.handleListEntireHistory(limit).transactionsList;
     }
 
     private static class SendCoinsRequestBody {

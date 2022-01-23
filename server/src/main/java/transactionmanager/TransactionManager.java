@@ -109,8 +109,15 @@ public class TransactionManager {
 
         // Wait for all servers to finish setup using the "initial barrier".
         final String initialBarrierId = "intial-setup";
+        List<String > allShards = new ArrayList<>();
+        try {
+            allShards = zk.getShards().keySet().stream().collect(Collectors.toList());
+        } catch (InterruptedException | KeeperException  e) {
+            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "failed to get all shards", e);
+        }
         try{
-            zk.enterBarrier(initialBarrierId, List.of(zk.getShards().keySet().toArray(new String[0])));
+            zk.enterBarrier(initialBarrierId, allShards);
         } catch (InterruptedException | KeeperException e) {
             LOGGER.log(Level.SEVERE, "failed to enter initial-setup barrier", e);
         }
@@ -128,7 +135,7 @@ public class TransactionManager {
             LOGGER.log(Level.SEVERE, String.format("Server $s (in shard $s) failed to register the Genesis Transaction.", myServerId, myShardId), e);
         }
         try{
-            zk.leaveBarrier(initialBarrierId, List.of(zk.getShards().keySet().toArray(new String[0])));
+            zk.leaveBarrier(initialBarrierId, allShards);
         } catch (InterruptedException | KeeperException e) {
             LOGGER.log(Level.SEVERE, String.format("Server %s failed to leave initial-setup barrier", myServerId), e);
         }
@@ -224,9 +231,23 @@ public class TransactionManager {
     }
 
     public Response.TransactionListResp handleListEntireHistory(int limit) {
-        // FIXME: Implement
-        return null;
+        LOGGER.log(Level.INFO, String.format("handleListEntireHistory: Received request with limit %d", limit));
+        Integer pendingReqId = currPendingReqId.incrementAndGet();
+        PendingRequest pendingRequest = new PendingRequest();
+        pendingRequests.put(pendingReqId, pendingRequest);
+        try {
+            atomicBroadcast.broadcastListEntireHistory(zk.getShards().keySet().stream().collect(Collectors.toList()), limit, myServerId, pendingReqId);
+            Response.TransactionListResp resp = pendingRequest.waitDone();
+            pendingRequests.remove(pendingReqId);
+            LOGGER.log(Level.INFO, String.format("handleListEntireHistory: Got response %s", resp.toString()));
+            return resp;
+        } catch (InterruptedException | KeeperException e) {
+            e.printStackTrace();
+            LOGGER.log(Level.INFO, String.format("handleListEntireHistory: Failed broadcast!!"));
+            return new Response.TransactionListResp(HttpStatus.BAD_REQUEST, "Couldn't Broadcast the ListEntireHistory", null);
+        }
     }
+
     public Response.TransactionListResp handleAtomicTxList(List<Request.TransactionRequest> atomicList) {
         // FIXME: Implement
         return null;
@@ -272,8 +293,8 @@ public class TransactionManager {
         return null;
     }
     public List<Transaction> gRPCGetEntireHistory(int limit) {
-        // FIXME: Implement
-        return null;
+        LOGGER.log(Level.INFO, String.format("gRPCGetEntireHistory: Called with %d", limit));
+        return ledger.getEntireHistory(limit);
     }
 
 
@@ -320,11 +341,47 @@ public class TransactionManager {
             }
         }
     }
-    public void processAtomicTxListLocally(List<Transaction> atomicList, String idempotencyKey, String origServerId, int pendingReqId) {
-        // FIXME: Implement
-        return;
-    }
+
     public void processListEntireHistoryLocally(int limit, String origServerId, int pendingReqId) {
+        LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Received request with limit %d from %s with pendingReqId %d",
+                limit, origServerId, pendingReqId));
+        try {
+            String barrierId = String.format("ListEntireHistoryBrr-from(%s)-Id(%d)", origServerId, pendingReqId);
+            List<String> shards = zk.getShards().keySet().stream().collect(Collectors.toList());
+            LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Entering Barrier %s", barrierId));
+            zk.enterBarrier(barrierId, shards);
+            LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Entered Barrier %s", barrierId));
+            List<Transaction> collectedTransactions = new ArrayList<>();
+            if (myServerId.equals(origServerId)) {
+                LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: I am originator, collecting histories from all shards."));
+                for (Map.Entry<String, List<String>> entry : zk.getShards().entrySet()) {
+                    LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Getting history from %s", entry.getKey()));
+                    List<Transaction> transactionList = rpcService.client.getEntireHistory(entry.getValue(), limit);
+                    collectedTransactions.addAll(transactionList);
+                }
+                LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Received %d transactions in history", collectedTransactions.size()));
+                collectedTransactions = collectedTransactions.stream()
+                        .sorted((t1,t2) -> (int) (t1.getTimestamp() - t2.getTimestamp()))
+                        .limit(limit != -1 ? limit : collectedTransactions.size())
+                        .collect(Collectors.toList());
+            }
+            LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Leaving Barrier %s", barrierId));
+            zk.leaveBarrier(barrierId, shards);
+            LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Left Barrier %s", barrierId));
+            if (myServerId.equals(origServerId)) {
+                LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Finished collecting transactions: %s", collectedTransactions.toString()));
+                this.pendingRequests.get(pendingReqId).finish(new Response.TransactionListResp(HttpStatus.OK, "Collected Entire History", collectedTransactions));
+            }
+        } catch (KeeperException | InterruptedException | IOException e) {
+            e.printStackTrace();
+            if (myServerId.equals(origServerId)) {
+                LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Failed!!"));
+                this.pendingRequests.get(pendingReqId).finish(new Response.TransactionListResp(HttpStatus.BAD_REQUEST, "Error!", null));
+            }
+        }
+    }
+
+    public void processAtomicTxListLocally(List<Transaction> atomicList, String idempotencyKey, String origServerId, int pendingReqId) {
         // FIXME: Implement
         return;
     }

@@ -191,4 +191,12 @@ public class TransactionLedger {
                     sourceAddress, currSum, coins), null);
         }
     }
+
+    public List<Transaction> getEntireHistory(int limit) {
+        return history.values().stream()
+                .filter(t -> zk.isResponsibleForAddress(t.getSourceAddress()) || t.getTimestamp() == 0)
+                .sorted((t1,t2) -> (int) (t1.getTimestamp() - t2.getTimestamp()))
+                .limit(limit != -1 ? limit : history.size())
+                .collect(Collectors.toList());
+    }
 }
