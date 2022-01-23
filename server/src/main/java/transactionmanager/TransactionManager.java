@@ -120,7 +120,7 @@ public class TransactionManager {
             LOGGER.log(Level.SEVERE, "failed to get all shards", e);
         }
         try{
-            zk.enterBarrier(initialBarrierId, allShards);
+            zk.enterBarrier(initialBarrierId, allShards,"");
         } catch (InterruptedException | KeeperException e) {
             LOGGER.log(Level.SEVERE, "failed to enter initial-setup barrier", e);
         }
@@ -406,7 +406,7 @@ public class TransactionManager {
             String barrierId = String.format("ListEntireHistoryBrr-from(%s)-Id(%d)", origServerId, pendingReqId);
             List<String> shards = zk.getShards().keySet().stream().collect(Collectors.toList());
             LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Entering Barrier %s", barrierId));
-            zk.enterBarrier(barrierId, shards);
+            zk.enterBarrier(barrierId, shards, origServerId);
             LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Entered Barrier %s", barrierId));
             List<Transaction> collectedTransactions = new ArrayList<>();
             if (myServerId.equals(origServerId)) {
