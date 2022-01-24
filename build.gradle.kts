@@ -5,9 +5,9 @@ plugins {
     idea
 }
 
-ext["grpcVersion"] = "1.39.0" // need to wait for grpc kotlin to move past this
+ext["grpcVersion"] = "1.43.0" // need to wait for grpc kotlin to move past this
 ext["grpcKotlinVersion"] = "1.2.0" // CURRENT_GRPC_KOTLIN_VERSION
-ext["protobufVersion"] = "3.18.1"
+ext["protobufVersion"] = "3.19.3"
 ext["coroutinesVersion"] = "1.5.2"
 ext["zookeeperVersion"]  = "3.5.9"
 ext["log4jVersion"] = "1.7.25"
