@@ -59,16 +59,17 @@ public class TransactionController {
      * @param transactions
      */
     @PostMapping("/transactions")
-    public @ResponseBody Transaction createTransaction(@RequestBody List<Request.TransactionRequest> transactions) {
+    public @ResponseBody List<Transaction> createTransaction(@RequestBody List<Request.TransactionRequest> transactions) {
         if (transactions.size() == 1) {
             Request.TransactionRequest transactionReq = transactions.get(0);
             Response.TransactionResp resp = transactionManager.handleTransaction(transactionReq);
             handleErrors(resp);
-            return resp.transaction;
+            return List.of(resp.transaction);
         } else {
-            // FIXME
+            Response.TransactionListResp resp = transactionManager.handleAtomicTxList(transactions);
+            handleErrors(resp);
+            return resp.transactionsList;
         }
-        return null;
     }
 
     @PostMapping("/send_coins")

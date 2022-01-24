@@ -113,7 +113,7 @@ public class TransactionLedger {
         return ret;
     }
 
-    public Response canProcessTransaction(Transaction transaction) {
+    public Response canProcessTransaction(Transaction transaction, boolean checkTimestamps) {
         if (history.containsKey(transaction.getSourceAddress())) {
             return new Response(HttpStatus.CONFLICT, String.format("Transaction already exists."));
         }
@@ -141,8 +141,10 @@ public class TransactionLedger {
             if (transactionForUTxO == null) {
                 return new Response(HttpStatus.BAD_REQUEST, String.format("Invalid UTxO in inputs: UTxO belongs to a transaction that wasn't processed."));
             }
-            if (transactionForUTxO.getTimestamp() >= transaction.getTimestamp()){
-                return new Response(HttpStatus.BAD_REQUEST, String.format("Invalid UTxO in inputs: UTxO belongs to a transaction with a later timestamp."));
+            if (checkTimestamps) { // Can't always check - in AtomicList for example we don't have timestamps when checking the first time yet.
+                if (transactionForUTxO.getTimestamp() >= transaction.getTimestamp()){
+                    return new Response(HttpStatus.BAD_REQUEST, String.format("Invalid UTxO in inputs: UTxO belongs to a transaction with a later timestamp."));
+                }
             }
             Optional<Transfer> transfer = transactionForUTxO.
                     getOutputs().

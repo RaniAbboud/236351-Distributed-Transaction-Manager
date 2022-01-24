@@ -16,7 +16,7 @@ import java.util.logging.Logger;
 
 class NodeData implements Serializable {
     private String address;
-    private Boolean decision = null;
+    private Decision decision = null;
 
     public String getAddress() {
         return address;
@@ -26,17 +26,15 @@ class NodeData implements Serializable {
         this.address = address;
     }
 
-    public Boolean getDecision() {
+    public Decision getDecision() {
         return decision;
     }
 
-    public void setDecision(boolean decision) {
-        this.decision = decision;
-    }
+    public NodeData() {;}
 
-    public NodeData(Boolean decision) {
-        this.decision = decision;
-    }
+    public NodeData(Boolean decision) { this.decision = new Decision(decision); }
+
+    public NodeData(Boolean decision, long timestamp) { this.decision = new Decision(decision, timestamp); }
 
     public NodeData(String address) {
         this.setAddress(address);
@@ -230,8 +228,9 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
      * @return boolean: are we doing it or not?
      */
     @Override
-    public boolean waitForDecision(String barrierId, String initiatorServerId) throws Exception {
+    public Decision waitForDecision(String barrierId, String initiatorServerId) throws Exception {
         String watchId = barrierId + "-decision"; // setting a different watchId than the one we're using for the barrier itself.
+        LOGGER.log(Level.INFO, String.format("waitForDecision: Started on barrier %s", watchId));
         this.locks.put(watchId, watchId); // create a mutex for this watch
         NodeData nodeData;
         byte[] barrierData;
@@ -239,27 +238,39 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
             try {
                 watchServer(initiatorServerId, watchId);
             } catch (Exception e) {
+                LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s is dead, reading data.", initiatorServerId));
                 barrierData = zk.getData(barriersPath + "/" + barrierId, createWatcher(watchId, Watcher.Event.EventType.NodeDataChanged), null);
                 assert barrierData != null;
                 nodeData = NodeData.convertFromBytes(barrierData);
                 if (nodeData.getDecision() == null) {
-                    return false;
+                    LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s Didn't put a decision", initiatorServerId));
+                    return new Decision(false);
                 }
+                LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s added a decision of %b", initiatorServerId, nodeData.getDecision().decision));
                 return nodeData.getDecision();
             }
+            LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s currently alive", initiatorServerId));
             barrierData = zk.getData(barriersPath + "/" + barrierId, createWatcher(watchId, Watcher.Event.EventType.NodeDataChanged), null);
             assert barrierData != null;
             nodeData = NodeData.convertFromBytes(barrierData);
             if (nodeData.getDecision() == null) {
+                LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s didn't put a decision waiting until he dies or puts a decision", initiatorServerId));
                 locks.get(watchId).wait();
             } else {
+                LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s decided %b", initiatorServerId, nodeData.getDecision().decision));
                 return nodeData.getDecision();
             }
         }
-        barrierData = zk.getData(barriersPath + "/" + barrierId, createWatcher(watchId, Watcher.Event.EventType.NodeDataChanged), null);
+        LOGGER.log(Level.INFO, String.format("waitForDecision: Woke up from waiting, reading data."));
+        barrierData = zk.getData(barriersPath + "/" + barrierId, null, null);
         assert barrierData != null;
         nodeData = NodeData.convertFromBytes(barrierData);
-        return nodeData.getDecision() != null && nodeData.getDecision();
+        if (nodeData.getDecision() == null) {
+            LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s Didn't put a decision", initiatorServerId));
+            return new Decision(false);
+        }
+        LOGGER.log(Level.INFO, String.format("waitForDecision: Server %s added a decision of %b", initiatorServerId, nodeData.getDecision().decision));
+        return nodeData.getDecision();
     }
 
     /**
@@ -272,8 +283,8 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
      * @throws KeeperException
      */
     @Override
-    public void setDecision(String barrierId, boolean decision) throws InterruptedException, KeeperException, IOException {
-        zk.setData(barriersPath + "/" + barrierId, NodeData.convertToBytes(new NodeData(decision)), -1);
+    public void setDecision(String barrierId, boolean decision, long timestamp) throws InterruptedException, KeeperException, IOException {
+        zk.setData(barriersPath + "/" + barrierId, NodeData.convertToBytes(new NodeData(decision, timestamp)), -1);
     }
 
     @Override
@@ -286,9 +297,9 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         this.locks.put(barrierId, barrierId); // create a mutex for this barrier
         try {
             // create NodeData with null vote representing 'no decision yet' (relevant only for the atomic txn list)
-            zk.create(barrierPath, NodeData.convertToBytes(new NodeData((Boolean) null)), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
+            zk.create(barrierPath, NodeData.convertToBytes(new NodeData()), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT); // create the barrier node
         } catch (KeeperException.NodeExistsException e) {
-            LOGGER.log(Level.FINEST, "Not creating barrier node. Barrier node already exists. BarrierId=" + barrierId);
+            LOGGER.log(Level.INFO, "Not creating barrier node. Barrier node already exists. BarrierId=" + barrierId);
             // already exists, ignore error.
         }
         // create node representing the server as a child of the barrier node
@@ -312,7 +323,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
                     try {
                         zk.create(readyNodePath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                     } catch (KeeperException.NodeExistsException e) {
-                        LOGGER.log(Level.FINEST, "Not creating /ready node. /ready node in barrier already exists. BarrierId=" + barrierId);
+                        LOGGER.log(Level.INFO, "Not creating /ready node. /ready node in barrier already exists. BarrierId=" + barrierId);
                     }
                     return;
                 } else if (readyNode != null){
@@ -330,7 +341,7 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
         try {
             zk.delete(barriersPath + "/" + barrierId + "/" + serverId, -1);
         } catch (KeeperException.NoNodeException e) {
-            LOGGER.log(Level.FINEST, "Barrier child node already deleted. BarrierId=" + barrierId + " ServerId=" + serverId);
+            LOGGER.log(Level.INFO, "Barrier child node already deleted. BarrierId=" + barrierId + " ServerId=" + serverId);
             // already deleted, ignore error.
         }
         while (true) {
@@ -348,13 +359,13 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
                     try {
                         zk.delete(barriersPath + "/" + barrierId + "/ready", -1);
                     } catch (KeeperException.NoNodeException e) {
-                        LOGGER.log(Level.FINEST, "Barrier's /ready node already deleted. BarrierId=" + barrierId);
+                        LOGGER.log(Level.INFO, "Barrier's /ready node already deleted. BarrierId=" + barrierId);
                         // already deleted, ignore error.
                     }
                     try {
                         zk.delete(barriersPath + "/" + barrierId, -1);
                     } catch (KeeperException.NoNodeException e) {
-                        LOGGER.log(Level.FINEST, "Barrier node already deleted. BarrierId=" + barrierId);
+                        LOGGER.log(Level.INFO, "Barrier node already deleted. BarrierId=" + barrierId);
                         // already deleted, ignore error.
                     }
                     return;
@@ -428,25 +439,38 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     }
 
     @Override
-    public boolean atomicCommitWait(String atomicTxnListId, String initiatorServer, boolean vote, List<String> votingShards) throws Exception {
+    public Decision atomicCommitWait(String atomicTxnListId, String initiatorServer, boolean vote, List<String> votingShards) throws Exception {
+        LOGGER.log(Level.INFO, String.format("atomicCommitWait: Started commit on %s with vote %b", atomicTxnListId, vote));
         enterBarrierWithVote(atomicTxnListId, votingShards, vote, initiatorServer);
-        boolean decision;
+        LOGGER.log(Level.INFO, String.format("atomicCommitWait: Entered voting barrier"));
+        Decision decision;
         if (serverId.equals(initiatorServer)) {
-            List<Boolean> votes = new ArrayList<>();
+            LOGGER.log(Level.INFO, String.format("atomicCommitWait: I am initiator"));
+            List<Decision> votes = new ArrayList<>();
             for (String shard : votingShards) {
                 for (String serverInShard : getServersInShard(shard)) {
                     // read shard vote
-                    byte[] data = zk.getData(barriersPath + "/" + serverInShard, false, null);
+                    byte[] data = zk.getData(barriersPath + "/" + atomicTxnListId + "/" + serverInShard, false, null);
                     NodeData nodeData = NodeData.convertFromBytes(data);
                     assert nodeData != null;
                     votes.add(nodeData.getDecision());
+                    LOGGER.log(Level.INFO, String.format("atomicCommitWait: Server %s voted %b", serverInShard, nodeData.getDecision().decision));
                 }
             }
-            decision = votes.stream().allMatch(val -> val);
-            setDecision(atomicTxnListId, decision);
+            long timestamp = -1;
+            boolean canCommit = votes.stream().allMatch(val -> val.decision);
+            if (canCommit) {
+                timestamp = getTimestamp();
+                LOGGER.log(Level.INFO, String.format("atomicCommitWait: We are committing with timestamp %d", timestamp));
+            }
+            setDecision(atomicTxnListId, canCommit, timestamp);
+            decision = new Decision(canCommit, timestamp);
         } else {
+            LOGGER.log(Level.INFO, String.format("atomicCommitWait: I am not initiator"));
             decision = waitForDecision(atomicTxnListId, initiatorServer);
+            LOGGER.log(Level.INFO, String.format("atomicCommitWait: Initiator decided %b", decision.decision));
         }
+        LOGGER.log(Level.INFO, String.format("atomicCommitWait: Leaving voting barrier"));
         leaveBarrier(atomicTxnListId);
         return decision;
     }

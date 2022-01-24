@@ -82,11 +82,6 @@ message TransactionHistoryMsg {
   repeated TransactionMsg transactions = 1;
 }
 
-/* Decision on submitting Atomic Transaction List */
-message DecisionMsg {
-  repeated HttpResponse http_resp = 2;
-}
-
 /* Broadcast Message */
 message BroadcastMsg {
   string origServerId = 1;

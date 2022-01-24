@@ -10,7 +10,7 @@ import model.*;
 import org.apache.zookeeper.KeeperException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import rest_api.exception.BadRequestException;
+import zookeeper.Decision;
 import zookeeper.ZooKeeperClient;
 import zookeeper.ZooKeeperClientImpl;
 
@@ -269,13 +269,15 @@ public class TransactionManager {
                     .map(this::getResponsibleShard)
                     .distinct().collect(Collectors.toList());
             List<Transaction> transactions = atomicList.stream().map(tr -> new Transaction(tr.inputs, tr.outputs)).collect(Collectors.toList());
-            // Validate before broadcasting
-            if (!validateRelevantTransactions(transactions)) {
-                throw new BadRequestException("Illegal transactions list");
+            // Build idempotency key to figure out retries
+            String idempotencyKey = String.format("AtomicList");
+            for (Transaction transaction : transactions) {
+                idempotencyKey += "-" + transaction.getTransactionId();
             }
             // Broadcast
-            atomicBroadcast.broadcastAtomicTxList(relevantShards, transactions, transactions.get(0).getTransactionId(), myServerId, pendingReqId);
-            processAtomicTxListLocally(transactions, transactions.get(0).getTransactionId(), myServerId, pendingReqId);
+            LOGGER.log(Level.INFO, String.format("handleAtomicTxList: Broadcasting atomic list [%s] to shards [%s] with key [%s]",
+                    transactions.toString(), relevantShards.toString(), idempotencyKey));
+            atomicBroadcast.broadcastAtomicTxList(relevantShards, transactions, idempotencyKey, myServerId, pendingReqId);
             Response.TransactionListResp resp = pendingRequest.waitDone();
             pendingRequests.remove(pendingReqId);
             LOGGER.log(Level.INFO, String.format("handleAtomicTxList: Got response %s", resp.toString()));
@@ -325,10 +327,6 @@ public class TransactionManager {
         ledger.recordTransaction(transaction);
     }
 
-    public List<Response> gRPCCanProcessAtomicTxListStubs(List<Request.TransactionRequest> atomicList) {
-        // FIXME: Implement
-        return null;
-    }
     public List<Transaction> gRPCGetEntireHistory(int limit) {
         LOGGER.log(Level.INFO, String.format("gRPCGetEntireHistory: Called with %d", limit));
         return ledger.getEntireHistory(limit);
@@ -341,7 +339,7 @@ public class TransactionManager {
      *  Functions should do the processing logic here for each of the functions.
      *  Each request (other than the ListEntireHistory) arrives with an idempotency key used to
      *  identify a specific request. If the idempotency key matches a previous request, we don't re-execute.
-     *  We should then return the original response with a `FIXME` http status code.
+     *  We should then return the original response with a CONFLICT response.
      *  The idempotencyKey for Coin Transfer should be: "CoinTransfer-{reqId}-{sourceAddress}-{targetAddress}-{coins}"
      *  The idempotencyKey for a regular Transaction or for an AtomicList is the transactionIds.
      */
@@ -381,20 +379,54 @@ public class TransactionManager {
         }
     }
 
-    public void processAtomicTxListLocally(List<Transaction> transactions, String idempotencyKey, String origServerId, int pendingReqId) { // todo: show Sajy and remove idempotencyKey
-        boolean shouldPerformTxnList = false; // a flag for "are we (the application servers) performing this list or not?"
-        try {
-            shouldPerformTxnList = zk.atomicCommitWait(transactions.get(0).getTransactionId(), origServerId, validateRelevantTransactions(transactions), getRelevantShardsForTransactions(transactions));
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "handleAtomicTxList: failed to perform atomicCommitWait", e);
-        }
-        if (!shouldPerformTxnList) {
-            return;
-        }
-        // process relevant transactions
-        for (Transaction transaction : transactions) {
-            if (zk.isResponsibleForAddress(transaction.getSourceAddress())) {
-                processTransactionLocally(transaction, transaction.getTransactionId(), origServerId, pendingReqId);
+    public void processAtomicTxListLocally(List<Transaction> transactions, String idempotencyKey, String origServerId, int pendingReqId) {
+        LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Received atomicList %s with key %s from %s with pendingReqId %d",
+                transactions.toString(), idempotencyKey, origServerId, pendingReqId));
+        if (doneRequests.containsKey(idempotencyKey)) {
+            LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Request with key %s already processed", idempotencyKey));
+            if (origServerId.equals(myServerId)) {
+                LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: I will return the CONFLICT response"));
+                Response resp = doneRequests.get(idempotencyKey);
+                resp.statusCode = HttpStatus.CONFLICT;
+                resp.reason = "Atomic Transaction List already processed!!";
+                this.pendingRequests.get(pendingReqId).finish(resp);
+            } else {
+                LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Already processed and not originated by me, ignoring."));
+            }
+        } else {
+            LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Need to process transaction"));
+            boolean canProcessMyTransactions = validateRelevantTransactions(transactions);
+            List<String> relevantShards = getRelevantShardsForTransactions(transactions);
+            LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Can Process my transactions is %b", canProcessMyTransactions));
+            Decision shouldPerformTxnList = new Decision(false); // a flag for "are we (the application servers) performing this list or not?"
+            try {
+                shouldPerformTxnList = zk.atomicCommitWait(idempotencyKey, origServerId, canProcessMyTransactions, relevantShards);
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "processAtomicTxListLocally: failed to perform atomicCommitWait", e);
+            }
+            Response.TransactionListResp resp;
+            if (shouldPerformTxnList.decision) {
+                LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Atomic Commit Passed, processing transactions locally. timestamp %d", shouldPerformTxnList.timestamp));
+                for (Transaction transaction : transactions) {
+                    transaction.setTimestamp(shouldPerformTxnList.timestamp);
+                    if (zk.isResponsibleForAddress(transaction.getSourceAddress())) {
+                        Response.TransactionResp processResp = this.tryProcessTransactionLocally(transaction);
+                        if (!processResp.statusCode.is2xxSuccessful()) {
+                            LOGGER.log(Level.SEVERE, String.format("Something is wrong with the atomicCommit, processing %s returned %s - %s",
+                                    transaction, processResp.statusCode.toString(), processResp.reason));
+                            throw new RuntimeException("Something is wrong with Atomic Commit processing");
+                        }
+                    }
+                }
+                resp = new Response.TransactionListResp(HttpStatus.CREATED, "Atomic List processed successfully", transactions);
+                this.doneRequests.put(idempotencyKey, resp);
+            } else {
+                LOGGER.log(Level.INFO, "processAtomicTxListLocally: Atomic Commit failed!!");
+                resp = new Response.TransactionListResp(HttpStatus.BAD_REQUEST, "Can't process Atomic List!", null);
+            }
+            if (myServerId.equals(origServerId)) {
+                LOGGER.log(Level.INFO, String.format("processAtomicTxListLocally: Transaction processed, returning %s", resp.toString()));
+                this.pendingRequests.get(pendingReqId).finish(resp);
             }
         }
     }
@@ -464,7 +496,7 @@ public class TransactionManager {
     }
 
     private Response.TransactionResp tryProcessTransactionLocally(Transaction transaction) {
-        Response canProcessResp = ledger.canProcessTransaction(transaction);
+        Response canProcessResp = ledger.canProcessTransaction(transaction, true);
         if (canProcessResp.statusCode.is2xxSuccessful()) {
             LOGGER.log(Level.INFO, String.format("tryProcessTransactionLocally: Transaction can be processed. Will register and broadcast results."));
             ledger.performTransaction(transaction);
@@ -491,16 +523,21 @@ public class TransactionManager {
     }
 
     private boolean validateRelevantTransactions(List<Transaction> transactions) {
-        return transactions.stream()
+        return !transactions.stream()
                 .filter(transaction -> zk.isResponsibleForAddress(transaction.getSourceAddress()))
-                .map(ledger::canProcessTransaction)
+                .map(t -> {
+                    Response resp = ledger.canProcessTransaction(t, false);
+                    LOGGER.log(Level.INFO, String.format("validateRelevantTransactions: Trans - %s returned %s - %s",
+                            t.toString(), resp.statusCode.toString(), resp.reason));
+                    return resp;
+                })
                 .map(response -> response.statusCode)
                 .anyMatch(HttpStatus::isError);
     }
 
     private List<String> getRelevantShardsForTransactions(List<Transaction> transactions) {
         return transactions.stream()
-                .map(tr -> tr.getInputs().get(0).getAddress())
+                .map(tr -> tr.getSourceAddress())
                 .map(this::getResponsibleShard)
                 .distinct().collect(Collectors.toList());
     }

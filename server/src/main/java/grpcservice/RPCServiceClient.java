@@ -29,7 +29,6 @@ public class RPCServiceClient {
     /** Need a function for each type for each server in the system */
     private Map<String, Function<TransactionMsg, Empty>> recordSubmittedTransactionStubs = new HashMap<>();
     private Map<String, Function<ReqListEntireHistoryMsg, TransactionHistoryMsg>> getEntireHistoryStubs = new HashMap<>();
-    private Map<String, Function<ReqAtomicTxListMsg, DecisionMsg>> canProcessAtomicTxListStubs = new HashMap<>();
 
     /**  Needs a mapping of all servers in the system and their addresses, so we can create a stub */
     public void setup(Map<String, String> serversAddresses) {
@@ -40,7 +39,6 @@ public class RPCServiceClient {
             TransactionManagerRPCServiceBlockingStub stub = TransactionManagerRPCServiceGrpc.newBlockingStub(channel);
             this.recordSubmittedTransactionStubs.put(entry.getKey(), stub::recordSubmittedTransaction);
             this.getEntireHistoryStubs.put(entry.getKey(), stub::getEntireHistory);
-            this.canProcessAtomicTxListStubs.put(entry.getKey(), stub::canProcessAtomicTxList);
         }
     }
 
@@ -60,13 +58,6 @@ public class RPCServiceClient {
             }
         }
         logger.log(Level.INFO, String.format("recordSubmittedTransaction: RPC succeeded to %d servers", cnt));
-    }
-
-    /** Checks if an AtomicList can be processed in one of the servers in the list, stops when one succeeds */
-    public List<Response> canProcessAtomicTxListStubs(List<String> servers, List<Request.TransactionRequest> atomicList) {
-        ReqAtomicTxListMsg req = RequestHandlerUtils.createReqAtomicTxListMsg(atomicList);
-        DecisionMsg resp = tryCallServer("canProcessAtomicTxListStubs", servers, req, this.canProcessAtomicTxListStubs);
-        return resp.getHttpRespList().stream().map(r -> new Response(HttpStatus.resolve(r.getStatusCode()), r.getReason())).collect(Collectors.toList());
     }
 
     /** Gets the entire history from one of the servers in the list, stops when one succeeds */

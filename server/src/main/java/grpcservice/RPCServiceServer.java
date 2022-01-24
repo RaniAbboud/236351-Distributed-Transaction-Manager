@@ -38,17 +38,4 @@ public class RPCServiceServer extends TransactionManagerRPCServiceGrpc.Transacti
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void canProcessAtomicTxList(ReqAtomicTxListMsg request, StreamObserver<DecisionMsg> responseObserver) {
-        List<Response> responses = mngr.gRPCCanProcessAtomicTxListStubs(
-                request.getTransactionsList().stream().map(trans -> new Request.TransactionRequest(
-                        trans.getInputsList().stream().map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()),
-                        trans.getOutputsList().stream().map(RequestHandlerUtils::createTransfer).collect(Collectors.toList())
-                )).collect(Collectors.toList()));
-        responseObserver.onNext(DecisionMsg.newBuilder().addAllHttpResp(responses.stream()
-                .map(resp -> RequestHandlerUtils.createHttpResponse(resp)).collect(Collectors.toList())).build());
-        responseObserver.onCompleted();
-    }
-
-
 }
