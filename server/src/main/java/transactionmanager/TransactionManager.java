@@ -209,6 +209,10 @@ public class TransactionManager {
                 sourceAddress, targetAddress, coins, reqId));
         if (zk.isResponsibleForAddress(sourceAddress)) {
             LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Will handle request"));
+            if (sourceAddress.equals(targetAddress)) {
+                LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Source is the same as the Target %s", sourceAddress));
+                return new Response.TransactionResp(HttpStatus.BAD_REQUEST, String.format("Source is the same as the Target %s", sourceAddress), null);
+            }
             Response.TransactionResp transaction = ledger.createTransactionForCoinTransfer(sourceAddress, targetAddress, coins);
             if (transaction.statusCode.is2xxSuccessful()) {
                 LOGGER.log(Level.INFO, String.format("handleCoinTransfer: Managed to create a transaction"));
