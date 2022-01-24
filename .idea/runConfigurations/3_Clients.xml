@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="3 Clients" type="CompoundRunConfigurationType">
+    <toRun name="Client - Random Test - 1" type="PythonConfigurationType" />
+    <toRun name="Client - Random Test - 2" type="PythonConfigurationType" />
+    <toRun name="Client - Random Test - 3" type="PythonConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>
