@@ -39,7 +39,7 @@ public class TransactionLedger {
     public void addGenesisBlockToLedger() {
         List<UTxO> inputs = new ArrayList<>();
         List<Transfer> outputs = new ArrayList<>();
-        outputs.add(new Transfer(GENESIS_ADDRESS, 1000000)); // FIXME - Maximum coins
+        outputs.add(new Transfer(GENESIS_ADDRESS, 1000000)); // Maximum coins, set to a low value for understandability
         Transaction genesisTransaction = new Transaction(GENESIS_TRANSACTION_ID, 0, "", inputs, outputs);
         history.put(genesisTransaction.getTransactionId(), genesisTransaction);
         HashSet<UTxO> currSet = new HashSet<>();
