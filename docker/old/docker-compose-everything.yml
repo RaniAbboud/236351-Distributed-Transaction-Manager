@@ -76,7 +76,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server1.local'
 
@@ -91,7 +91,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server2.local'
 
@@ -106,7 +106,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server3.local'
 
@@ -121,7 +121,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server4.local'
 
@@ -136,7 +136,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server5.local'
 
@@ -151,7 +151,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server6.local'
 
@@ -166,7 +166,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server7.local'
 
@@ -181,7 +181,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server8.local'
 
@@ -196,7 +196,7 @@ services:
       - "zookeeper2"
       - "zookeeper3"
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server9.local'
 
