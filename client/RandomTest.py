@@ -18,14 +18,20 @@ def runTest(servers):
         "LIST_UTXOS"
     ]
 
+    firstTime = True
+    THRESHOLD = 5
+    cnt = 0
     for i in range(NUM_REQUESTS):
         chosenType = random.choice(AVAILABLE_REQUESTS)
         print(f"{testName}: Trying request of type {chosenType} - {i+1}/{NUM_REQUESTS}")
 
+        cnt += 1
         ## Just get all history and available UTxOs at each transaction instead of carrying state by ourselves
-        if (chosenType in ["TRANSACTION", "COIN_TRANSFER", "ATOMIC_LIST"]):
+        if (firstTime or ((cnt > THRESHOLD) and chosenType in ["TRANSACTION", "COIN_TRANSFER", "ATOMIC_LIST"])):
             history = Requests.listEntireHistory(servers, suppress=True)
             unused_utxos = Utils.getAllUnusedUTxOsFromHistory(history)
+            cnt = 0
+            firstTime = False
 
         if chosenType == "TRANSACTION":
             transaction = Utils.createRandomTransaction(unused_utxos)
@@ -37,10 +43,18 @@ def runTest(servers):
             atomic_list = Utils.createRandomAtomicList(unused_utxos)
             Requests.sendAtomicTransactionList(servers, atomic_list)
         elif chosenType == "LIST_ENTIRE_HISTORY":
-            Requests.listEntireHistory(servers)
+            if random.randint(1, 100) <= 20:
+                history = Requests.listEntireHistory(servers)
+                unused_utxos = Utils.getAllUnusedUTxOsFromHistory(history)
+                cnt = 0
+            else:
+                Requests.listEntireHistory(servers, limit=random.randint(1, 100))
         elif chosenType == "LIST_HISTORY_FOR_USER":
             chosenUser = random.choice(Utils.BASIC_CLIENTS_LIST)
-            Requests.getAllTransactionsForUser(servers, chosenUser)
+            if random.randint(1, 100) <= 20:
+                Requests.getAllTransactionsForUser(servers, chosenUser)
+            else:
+                Requests.getAllTransactionsForUser(servers, chosenUser, limit=random.randint(1, 100))
         elif chosenType == "LIST_UTXOS":
             chosenUser = random.choice(Utils.BASIC_CLIENTS_LIST)
             Requests.getAllUtxosForUser(servers, chosenUser)

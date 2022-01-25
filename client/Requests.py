@@ -7,6 +7,7 @@ import requests
 
 
 def sendTransaction(servers, transaction):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -26,6 +27,7 @@ def sendTransaction(servers, transaction):
 
 
 def sendAtomicTransactionList(servers, transactionList):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -44,6 +46,7 @@ def sendAtomicTransactionList(servers, transactionList):
     assert 0, "No servers left!!"
 
 def sendCoins(servers, fromServer, toServer, coins):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -69,6 +72,7 @@ def sendCoins(servers, fromServer, toServer, coins):
 
 
 def listEntireHistory(servers, limit=None, suppress=False):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -95,6 +99,7 @@ def listEntireHistory(servers, limit=None, suppress=False):
 
 
 def getAllTransactionsForUser(servers, address, limit=None):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -119,6 +124,7 @@ def getAllTransactionsForUser(servers, address, limit=None):
 
 
 def getAllUtxosForUser(servers, address):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:

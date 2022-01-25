@@ -20,9 +20,9 @@ public class RequestHandlerUtils {
         logger.log(Level.INFO, String.format("%s: Sending %s to servers %s", requester, req.toString(), servers.toString()));
         for (String currServer : servers) {
             try {
-                logger.log(Level.INFO, String.format("%s: Trying server %s", requester, currServer));
+                logger.log(Level.FINEST, String.format("%s: Trying server %s", requester, currServer));
                 RespT resp = func.get(currServer).apply(req);
-                logger.log(Level.INFO, String.format("%s: RPC to %s succeeded with %s", requester, currServer, resp.toString()));
+                logger.log(Level.FINEST, String.format("%s: RPC to %s succeeded with %s", requester, currServer, resp.toString()));
                 return resp;
             } catch (StatusRuntimeException e) {
                 logger.log(Level.WARNING, String.format("%s: RPC to %s failed, will retry if any left", requester, currServer));

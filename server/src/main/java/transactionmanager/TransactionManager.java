@@ -249,7 +249,7 @@ public class TransactionManager {
             atomicBroadcast.broadcastListEntireHistory(zk.getShards().keySet().stream().collect(Collectors.toList()), limit, myServerId, pendingReqId);
             Response.TransactionListResp resp = pendingRequest.waitDone();
             pendingRequests.remove(pendingReqId);
-            LOGGER.log(Level.INFO, String.format("handleListEntireHistory: Got response %s", resp.toString()));
+            LOGGER.log(Level.FINEST, String.format("handleListEntireHistory: Got response %s", resp.toString()));
             return resp;
         } catch (InterruptedException | KeeperException e) {
             e.printStackTrace();
@@ -327,12 +327,12 @@ public class TransactionManager {
      * checking if an atomic list can be submitted or giving the entire history.
      */
     public void gRPCRecordSubmittedTransaction(Transaction transaction) {
-        LOGGER.log(Level.INFO, String.format("gRPCRecordSubmittedTransaction: Recording %s", transaction.toString()));
+        LOGGER.log(Level.FINEST, String.format("gRPCRecordSubmittedTransaction: Recording %s", transaction.toString()));
         ledger.recordTransaction(transaction);
     }
 
     public List<Transaction> gRPCGetEntireHistory(int limit) {
-        LOGGER.log(Level.INFO, String.format("gRPCGetEntireHistory: Called with %d", limit));
+        LOGGER.log(Level.FINEST, String.format("gRPCGetEntireHistory: Called with %d", limit));
         return ledger.getEntireHistory(limit);
     }
 
@@ -462,7 +462,7 @@ public class TransactionManager {
             zk.leaveBarrier(barrierId);
             LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Left Barrier %s", barrierId));
             if (myServerId.equals(origServerId)) {
-                LOGGER.log(Level.INFO, String.format("processListEntireHistoryLocally: Finished collecting transactions: %s", collectedTransactions.toString()));
+                LOGGER.log(Level.FINEST, String.format("processListEntireHistoryLocally: Finished collecting transactions: %s", collectedTransactions.toString()));
                 this.pendingRequests.get(pendingReqId).finish(new Response.TransactionListResp(HttpStatus.OK, "Collected Entire History", collectedTransactions));
             }
         } catch (KeeperException | InterruptedException | IOException e) {
@@ -531,7 +531,7 @@ public class TransactionManager {
                 .filter(transaction -> zk.isResponsibleForAddress(transaction.getSourceAddress()))
                 .map(t -> {
                     Response resp = ledger.canProcessTransaction(t, false);
-                    LOGGER.log(Level.INFO, String.format("validateRelevantTransactions: Trans - %s returned %s - %s",
+                    LOGGER.log(Level.FINEST, String.format("validateRelevantTransactions: Trans - %s returned %s - %s",
                             t.toString(), resp.statusCode.toString(), resp.reason));
                     return resp;
                 })

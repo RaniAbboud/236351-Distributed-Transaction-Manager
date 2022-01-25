@@ -46,18 +46,18 @@ public class RPCServiceClient {
     public void recordSubmittedTransaction(List<String> servers, Transaction transaction) {
         int cnt = 0;
         TransactionMsg msg = RequestHandlerUtils.createTransactionMsg(transaction);
-        logger.log(Level.INFO, String.format("recordSubmittedTransaction: Sending %s to each of the servers %s", msg.toString(), servers.toString()));
+        logger.log(Level.FINEST, String.format("recordSubmittedTransaction: Sending %s to each of the servers %s", msg.toString(), servers.toString()));
         for (String currServer : servers) {
             try {
-                logger.log(Level.INFO, String.format("recordSubmittedTransaction: Trying server %s", currServer));
+                logger.log(Level.FINEST, String.format("recordSubmittedTransaction: Trying server %s", currServer));
                 Empty resp = this.recordSubmittedTransactionStubs.get(currServer).apply(msg);
-                logger.log(Level.INFO, String.format("recordSubmittedTransaction: RPC to %s succeeded", currServer));
+                logger.log(Level.FINEST, String.format("recordSubmittedTransaction: RPC to %s succeeded", currServer));
                 cnt++;
             } catch (StatusRuntimeException e) {
-                logger.log(Level.INFO, String.format("recordSubmittedTransaction: RPC to %s failed", currServer));
+                logger.log(Level.FINEST, String.format("recordSubmittedTransaction: RPC to %s failed", currServer));
             }
         }
-        logger.log(Level.INFO, String.format("recordSubmittedTransaction: RPC succeeded to %d servers", cnt));
+        logger.log(Level.FINEST, String.format("recordSubmittedTransaction: RPC succeeded to %d servers", cnt));
     }
 
     /** Gets the entire history from one of the servers in the list, stops when one succeeds */

@@ -159,11 +159,11 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
         for (String currShard : shardsList) {
             String currSequencer = sequencers.get(currShard);
             try {
-                logger.log(Level.INFO, String.format("%s: Sending message %s to sequencer %s of shard %s", ID, msg.toString(), currSequencer, currShard));
+                logger.log(Level.FINEST, String.format("%s: Sending message %s to sequencer %s of shard %s", ID, msg.toString(), currSequencer, currShard));
                 Empty resp = broadcastToShardStubs.get(currSequencer).apply(msg);
-                logger.log(Level.INFO, String.format("%s: Sending message to %s succeeded", ID, currSequencer));
+                logger.log(Level.FINEST, String.format("%s: Sending message to %s succeeded", ID, currSequencer));
             } catch (StatusRuntimeException e) {
-                logger.log(Level.INFO, String.format("%s: Sending message to %s failed!! Sequencers should be alive !!", ID, currSequencer));
+                logger.log(Level.FINEST, String.format("%s: Sending message to %s failed!! Sequencers should be alive !!", ID, currSequencer));
                 throw new RuntimeException(String.format("%s: Sequencer %s of Shard %s isn't available!!", ID, currSequencer, currShard));
             }
         }
@@ -176,11 +176,11 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
     /* Called on a request that we need to broadcast */
     @Override
     public void broadcastToShard(BroadcastMsg request, StreamObserver<Empty> responseObserver) {
-        logger.log(Level.INFO, String.format("%s: Received proposal to sequencer: %s. Pushing to Queue.", ID, request.toString()));
+        logger.log(Level.FINEST, String.format("%s: Received proposal to sequencer: %s. Pushing to Queue.", ID, request.toString()));
         BroadcastMsgAndFlag msg = new BroadcastMsgAndFlag(request);
         proposalsQueue.add(msg);
         msg.waitScheduled();
-        logger.log(Level.INFO, String.format("%s: Request %s scheduled.", ID, request.toString()));
+        logger.log(Level.FINEST, String.format("%s: Request %s scheduled.", ID, request.toString()));
         responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
     }
@@ -188,7 +188,7 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
     /* Called on a request by the sequencer to execute */
     @Override
     public void executeMsg(BroadcastMsg request, StreamObserver<Empty> responseObserver) {
-        logger.log(Level.INFO, String.format("%s: Received message from sequencer to execute: %s. Pushing to Queue.", ID, request.toString()));
+        logger.log(Level.FINEST, String.format("%s: Received message from sequencer to execute: %s. Pushing to Queue.", ID, request.toString()));
         packetsQueue.add(request);
         responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
@@ -227,27 +227,27 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
             while (true) {
                 try {
                     BroadcastMsgAndFlag currReq = proposalsQueue.take();
-                    logger.log(Level.INFO, String.format("%s: Popped message from proposals queue to execute: %s", ID, currReq.msg.toString()));
+                    logger.log(Level.FINEST, String.format("%s: Popped message from proposals queue to execute: %s", ID, currReq.msg.toString()));
                     currReq.finish(); // Signal that it is scheduled to requester
                     Pair<String, Integer> currId = new Pair(currReq.msg.getOrigServerId(), currReq.msg.getPendingReqId());
                     if (done.contains(currId)) {
-                        logger.log(Level.INFO, String.format("%s: Message from %s with pendingReqId %s already executed", ID, currId.component1(), currId.component2()));
+                        logger.log(Level.FINEST, String.format("%s: Message from %s with pendingReqId %s already executed", ID, currId.component1(), currId.component2()));
                     } else {
                         BroadcastMsg msgToExecute = currReq.msg;
                         // Check if need to take a timestamp
                         if (currReq.msg.hasTransaction()) {
                             long currTimestamp = mngr.getNewTimestamp();
-                            logger.log(Level.INFO, String.format("%s: Took timestamp %s for message", ID, currTimestamp));
+                            logger.log(Level.FINEST, String.format("%s: Took timestamp %s for message", ID, currTimestamp));
                             msgToExecute = currReq.msg.toBuilder().setAssignedTimestamp(currTimestamp).build();
                         }
-                        logger.log(Level.INFO, String.format("%s: Executing %s", ID, msgToExecute.toString()));
+                        logger.log(Level.FINEST, String.format("%s: Executing %s", ID, msgToExecute.toString()));
                         for (Map.Entry<String, Function<BroadcastMsg, Empty>> entry : executeMsgStubs.entrySet()) {
                             try {
-                                logger.log(Level.INFO, String.format("%s: Sending packet to %s", ID, entry.getKey()));
+                                logger.log(Level.FINEST, String.format("%s: Sending packet to %s", ID, entry.getKey()));
                                 Empty resp = entry.getValue().apply(msgToExecute);
-                                logger.log(Level.INFO, String.format("%s: Sending packet to %s succeeded", ID, entry.getKey()));
+                                logger.log(Level.FINEST, String.format("%s: Sending packet to %s succeeded", ID, entry.getKey()));
                             } catch (StatusRuntimeException e) {
-                                logger.log(Level.INFO, String.format("%s: Sending packet to %s failed", ID, entry.getKey()));
+                                logger.log(Level.FINEST, String.format("%s: Sending packet to %s failed", ID, entry.getKey()));
                             }
                         }
                         this.executor.executePacket(msgToExecute);
@@ -279,7 +279,7 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
         }
 
         public void executePacket(BroadcastMsg packet) {
-            logger.log(Level.INFO, String.format("%s: Started executing: %s", ID, packet.toString()));
+            logger.log(Level.FINEST, String.format("%s: Started executing: %s", ID, packet.toString()));
             if (packet.hasTransaction()) {
                 Transaction trans = RequestHandlerUtils.createTransaction(packet.getTransaction());
                 trans.setTimestamp(packet.getAssignedTimestamp());
@@ -292,7 +292,7 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
             } else if (packet.hasLimit()) {
                 mngr.processListEntireHistoryLocally(packet.getLimit(), packet.getOrigServerId(), packet.getPendingReqId());
             }
-            logger.log(Level.INFO, String.format("%s: Done executing", ID));
+            logger.log(Level.FINEST, String.format("%s: Done executing", ID));
         }
 
         @Override
@@ -300,7 +300,7 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
             while (true) {
                 try {
                     BroadcastMsg currReq = packetsQueue.take();
-                    logger.log(Level.INFO, String.format("%s: Popped message from queue to execute: %s", ID, currReq.toString()));
+                    logger.log(Level.FINEST, String.format("%s: Popped message from queue to execute: %s", ID, currReq.toString()));
                     this.executePacket(currReq);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
