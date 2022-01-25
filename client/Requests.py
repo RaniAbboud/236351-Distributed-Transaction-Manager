@@ -7,6 +7,7 @@ import requests
 
 
 def sendTransaction(servers, transaction):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -20,11 +21,13 @@ def sendTransaction(servers, transaction):
             print("##" * 30)
             return r
         except:
-            print(f"Couldn't send to server {server}")
+            print(f"Couldn't send to server {server}, removing it")
+            servers.remove(server)
     assert 0, "No servers left!!"
 
 
 def sendAtomicTransactionList(servers, transactionList):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -38,10 +41,12 @@ def sendAtomicTransactionList(servers, transactionList):
             print("##" * 30)
             return r
         except:
-            print(f"Couldn't send to server {server}")
+            print(f"Couldn't send to server {server}, removing it")
+            servers.remove(server)
     assert 0, "No servers left!!"
 
 def sendCoins(servers, fromServer, toServer, coins):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -61,11 +66,13 @@ def sendCoins(servers, fromServer, toServer, coins):
             print("##" * 30)
             return r
         except:
-            print(f"Couldn't send to server {server}")
+            print(f"Couldn't send to server {server}, removing it")
+            servers.remove(server)
     assert 0, "No servers left!!"
 
 
 def listEntireHistory(servers, limit=None, suppress=False):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -86,11 +93,13 @@ def listEntireHistory(servers, limit=None, suppress=False):
             return r
         except:
             if not suppress:
-                print(f"Couldn't send to server {server}")
+                print(f"Couldn't send to server {server}, removing it")
+            servers.remove(server)
     assert 0, "No servers left!!"
 
 
 def getAllTransactionsForUser(servers, address, limit=None):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -108,12 +117,14 @@ def getAllTransactionsForUser(servers, address, limit=None):
             print("##" * 30)
             return r
         except:
-            print(f"Couldn't send to server {server}")
+            print(f"Couldn't send to server {server}, removing it")
+            servers.remove(server)
     assert 0, "No servers left!!"
 
 
 
 def getAllUtxosForUser(servers, address):
+    servers = list(servers)
     while len(servers):
         server = random.choice(servers)
         try:
@@ -127,5 +138,6 @@ def getAllUtxosForUser(servers, address):
             print("##" * 30)
             return r
         except:
-            print(f"Couldn't send to server {server}")
+            print(f"Couldn't send to server {server}, removing it")
+            servers.remove(server)
     assert 0, "No servers left!!"
