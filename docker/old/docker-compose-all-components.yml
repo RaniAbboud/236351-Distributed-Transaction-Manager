@@ -76,7 +76,7 @@ services:
     networks:
       - zookeeper
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server1.local'
 
@@ -89,7 +89,7 @@ services:
     networks:
       - zookeeper
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server2.local'
 
@@ -102,7 +102,7 @@ services:
     networks:
       - zookeeper
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server3.local'
 
@@ -115,7 +115,7 @@ services:
     networks:
       - zookeeper
     env_file:
-      - 'variables.env'
+      - '../variables.env'
     environment:
       HOST_NAME: 'server4.local'
 

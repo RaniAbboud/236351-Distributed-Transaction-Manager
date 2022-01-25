@@ -1,0 +1,188 @@
+# Get docker for your system @ https://docs.docker.com/get-docker/
+#   Docker for Linux
+#   Docker Desktop for Windows / macOS
+# 
+# Use the following commands to start the cluster
+#   Starting:
+#     $ docker-compose -f docker-compose-cluster.yml up
+#   Deleteing all ZooKeeper sanpshots:
+#     $ docker-compose -f docker-compose-cluster.yml down -v 
+
+version: '2'
+
+services:
+  zookeeper1:
+    image: docker.io/zookeeper:3.7
+    hostname: zoo1.zk.local
+    ports:
+      - 2181:2181
+    networks:
+      - zookeeper
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zoo1.zk.local:2888:3888;2181 server.2=zoo2.zk.local:2888:3888;2181 server.3=zoo3.zk.local:2888:3888;2181
+      ALLOW_ANONYMOUS_LOGIN: yes
+
+  zookeeper2:
+    image: docker.io/zookeeper:3.7
+    hostname: zoo2.zk.local
+    ports:
+      - 2182:2181
+    networks:
+       - zookeeper
+    environment:
+       ZOO_MY_ID: 2
+       ZOO_SERVERS: server.1=zoo1.zk.local:2888:3888;2181 server.2=zoo2.zk.local:2888:3888;2181 server.3=zoo3.zk.local:2888:3888;2181
+       ALLOW_ANONYMOUS_LOGIN: yes
+
+  zookeeper3:
+    image: docker.io/zookeeper:3.7
+    hostname: zoo3.zk.local
+    ports:
+      - 2183:2181
+    networks:
+       - zookeeper
+    environment:
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo1.zk.local:2888:3888;2181 server.2=zoo2.zk.local:2888:3888;2181 server.3=zoo3.zk.local:2888:3888;2181
+      ALLOW_ANONYMOUS_LOGIN: yes
+
+  #  zoonavigator:
+  #    image: elkozmon/zoonavigator:1.1.1
+  #    hostname: navigator.zk.local
+  #    ports:
+  #      - 9000:9000
+  #    networks:
+  #      - zookeeper
+  #    environment:
+  #      HTTP_PORT: 9000
+  #      CONNECTION_ZKLOCAL1_NAME: ZooKeeper Server 1
+  #      CONNECTION_ZKLOCAL1_CONN: zoo1.zk.local
+  #
+  #      CONNECTION_ZKLOCAL2_NAME: ZooKeeper Server 2
+  #      CONNECTION_ZKLOCAL2_CONN: zoo2.zk.local
+  #
+  #      CONNECTION_ZKLOCAL3_NAME: ZooKeeper Server 3
+  #      CONNECTION_ZKLOCAL3_CONN: zoo3.zk.local
+  #
+  #      AUTO_CONNECT_CONNECTION_ID: ZKLOCAL1
+
+  server1:
+    image: rani3abboud/txn-mngr
+    hostname: server1.local
+    ports:
+      - '8081:8080' # For REST
+      - '8981:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server1.local'
+
+  server2:
+    image: rani3abboud/txn-mngr
+    hostname: server2.local
+    ports:
+      - '8082:8080' # For REST
+      - '8982:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server2.local'
+
+  server3:
+    image: rani3abboud/txn-mngr
+    hostname: server3.local
+    ports:
+      - '8083:8080' # For REST
+      - '8983:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server3.local'
+
+  server4:
+    image: rani3abboud/txn-mngr
+    hostname: server4.local
+    ports:
+      - '8084:8080' # For REST
+      - '8984:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server4.local'
+
+  server5:
+    image: rani3abboud/txn-mngr
+    hostname: server5.local
+    ports:
+      - '8085:8080' # For REST
+      - '8985:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server5.local'
+
+  server6:
+    image: rani3abboud/txn-mngr
+    hostname: server6.local
+    ports:
+      - '8086:8080' # For REST
+      - '8986:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server6.local'
+
+  server7:
+    image: rani3abboud/txn-mngr
+    hostname: server7.local
+    ports:
+      - '8087:8080' # For REST
+      - '8987:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server7.local'
+
+  server8:
+    image: rani3abboud/txn-mngr
+    hostname: server8.local
+    ports:
+      - '8088:8080' # For REST
+      - '8988:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server8.local'
+
+  server9:
+    image: rani3abboud/txn-mngr
+    hostname: server9.local
+    ports:
+      - '8089:8080' # For REST
+      - '8989:8980' # For gRPC
+    networks:
+      - zookeeper
+    env_file:
+      - 'variables.env'
+    environment:
+      HOST_NAME: 'server9.local'
+
+networks:
+  zookeeper:
