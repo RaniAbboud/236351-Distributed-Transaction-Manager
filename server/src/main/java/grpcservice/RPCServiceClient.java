@@ -1,6 +1,7 @@
 package grpcservice;
 
 import com.google.protobuf.Empty;
+import constants.Constants;
 import cs236351.grpcservice.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -35,7 +36,7 @@ public class RPCServiceClient {
         for (Map.Entry<String,String> entry : serversAddresses.entrySet()) {
             logger.log(Level.INFO, String.format("Creating a blocking stub to server %s at address %s",
                     entry.getKey(), entry.getValue()));
-            ManagedChannel channel = ManagedChannelBuilder.forTarget(entry.getValue()).usePlaintext().build();
+            ManagedChannel channel = ManagedChannelBuilder.forTarget(entry.getValue()+ ":" + System.getenv(Constants.ENV_GRPC_PORT)).usePlaintext().build();
             TransactionManagerRPCServiceBlockingStub stub = TransactionManagerRPCServiceGrpc.newBlockingStub(channel);
             this.recordSubmittedTransactionStubs.put(entry.getKey(), stub::recordSubmittedTransaction);
             this.getEntireHistoryStubs.put(entry.getKey(), stub::getEntireHistory);

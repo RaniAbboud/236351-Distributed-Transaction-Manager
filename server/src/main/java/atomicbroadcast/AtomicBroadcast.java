@@ -1,6 +1,7 @@
 package atomicbroadcast;
 
 import com.google.protobuf.Empty;
+import constants.Constants;
 import cs236351.grpcservice.BroadcastMsg;
 import cs236351.grpcservice.TransactionHistoryMsg;
 import grpcservice.RequestHandlerUtils;
@@ -96,7 +97,7 @@ public class AtomicBroadcast extends AtomicBroadcastServiceGrpc.AtomicBroadcastS
         for (Map.Entry<String,String> entry : serversAddresses.entrySet()) {
             logger.log(Level.INFO, String.format("%s: Creating a blocking stub to server %s at address %s",
                     ID, entry.getKey(), entry.getValue()));
-            ManagedChannel channel = ManagedChannelBuilder.forTarget(entry.getValue()).usePlaintext().build();
+            ManagedChannel channel = ManagedChannelBuilder.forTarget(entry.getValue()+ ":" + System.getenv(Constants.ENV_GRPC_PORT)).usePlaintext().build();
             AtomicBroadcastServiceGrpc.AtomicBroadcastServiceBlockingStub stub = AtomicBroadcastServiceGrpc.newBlockingStub(channel);
             // broadcastToShardStubs are needed to all servers since all of them can be sequencers at some point
             this.broadcastToShardStubs.put(entry.getKey(), stub::broadcastToShard);

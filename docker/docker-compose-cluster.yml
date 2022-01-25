@@ -75,6 +75,7 @@ services:
 
 networks:
   zookeeper:
+    name: custom_network
 
 volumes:
   zookeeper1_data:

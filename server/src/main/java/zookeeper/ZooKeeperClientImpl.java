@@ -14,6 +14,8 @@ import java.util.function.BiFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static java.lang.Thread.sleep;
+
 class NodeData implements Serializable {
     private String address;
     private Decision decision = null;
@@ -144,8 +146,14 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
     @Override
     public void setup() throws IOException {
         /** Create Zookeeper client */
-        int sessionTimeout = 5000;
-        this.zk = new ZooKeeper(zkConnection, sessionTimeout, this);
+        int sessionTimeout = 120000;
+        while(true){
+            try{
+                this.zk = new ZooKeeper(zkConnection, sessionTimeout, this);
+                sleep(500);
+                break;
+            } catch (IOException | InterruptedException e){}
+        }
         /** Parse Env formation */
         this.numShards = Integer.parseInt(System.getenv(Constants.ENV_NUM_SHARDS));
         this.numServersPerShard = Integer.parseInt(System.getenv(Constants.ENV_NUM_SERVERS_PER_SHARD));
@@ -154,13 +162,11 @@ public class ZooKeeperClientImpl implements ZooKeeperClient, Watcher {
             /** Create initial structure */
             this.setupInitialStructures();
             /** Register Myself */
-            this.registerServer(System.getenv(Constants.ENV_GRPC_ADDRESS));
+            this.registerServer(System.getenv(Constants.ENV_HOST_NAME));
             /** Wait for all other Servers to be registered */
             this.waitForAllServersToRegister();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (KeeperException e) {
-            e.printStackTrace();
+        } catch (InterruptedException | KeeperException e) {
+            LOGGER.log(Level.SEVERE, "ZK client setup failed.", e);
         }
     }
 

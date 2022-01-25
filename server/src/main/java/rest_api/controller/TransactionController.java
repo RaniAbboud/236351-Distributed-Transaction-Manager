@@ -33,6 +33,13 @@ public class TransactionController {
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE,"Failed to initialize TransactionManager", e);
         }
+//        new Thread(() -> {
+//            try {
+//                transactionManager.setup();
+//            } catch (IOException e) {
+//                LOGGER.log(Level.SEVERE,"Failed to initialize TransactionManager", e);
+//            }
+//        }).start();
     }
 
     private TransactionManager transactionManager = null;

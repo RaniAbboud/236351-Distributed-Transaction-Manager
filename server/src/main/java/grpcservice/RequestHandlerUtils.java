@@ -28,7 +28,7 @@ public class RequestHandlerUtils {
                 logger.log(Level.WARNING, String.format("%s: RPC to %s failed, will retry if any left", requester, currServer));
             }
         }
-        logger.log(Level.SEVERE, String.format("%s: Sending %s failed on all servers: %s !!", requester, req.toString(), servers.toString()));
+        logger.log(Level.SEVERE, String.format("%s: Sending %s failed on all servers: %s !!", requester, req, servers));
         return null;
     }
 
@@ -68,7 +68,7 @@ public class RequestHandlerUtils {
     }
     public static ReqAtomicTxListMsg createReqAtomicTxListMsg(List<Request.TransactionRequest> atomicList) {
         return ReqAtomicTxListMsg.newBuilder()
-                .addAllTransactions(atomicList.stream().map(req -> createReqTransactionMsg(req)).collect(Collectors.toList()))
+                .addAllTransactions(atomicList.stream().map(RequestHandlerUtils::createReqTransactionMsg).collect(Collectors.toList()))
                 .build();
     }
     public static ReqListAddrUTxOMsg createReqListAddrUTxOMsg(String sourceAddress) {
@@ -99,8 +99,6 @@ public class RequestHandlerUtils {
                 resp.getHttpResp().getReason(),
                 (resp.getUtxosCount() != 0) ? resp.getUtxosList().stream()
                         .map(RequestHandlerUtils::createUTxO).collect(Collectors.toList()) : null
-//                ,(resp.getTransactionsCount() != 0) ? resp.getTransactionsList().stream()
-//                        .map(RequestHandlerUtils::createTransaction).collect(Collectors.toList()) : null
         );
     }
 
@@ -144,9 +142,6 @@ public class RequestHandlerUtils {
     }
     public static RespUnusedUTxOListMsg createUnusedUTxOListResp(Response.UnusedUTxOListResp resp) {
         RespUnusedUTxOListMsg.Builder builder = RespUnusedUTxOListMsg.newBuilder().setHttpResp(createHttpResponse(resp));
-        // if (resp.transactionsList != null) {
-        //     builder.addAllTransactions(resp.transactionsList.stream().map(RequestHandlerUtils::createTransactionMsg).collect(Collectors.toList()));
-        // }
         if (resp.unusedUtxoList != null) {
             builder.addAllUtxos(resp.unusedUtxoList.stream().map(RequestHandlerUtils::createUTxOMsg).collect(Collectors.toList()));
         }

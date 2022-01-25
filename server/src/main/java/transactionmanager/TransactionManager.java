@@ -6,7 +6,10 @@ import grpcservice.RequestHandler;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import javassist.bytecode.stackmap.TypeData;
-import model.*;
+import model.Request;
+import model.Response;
+import model.Transaction;
+import model.Transfer;
 import org.apache.zookeeper.KeeperException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,13 +18,17 @@ import zookeeper.ZooKeeperClient;
 import zookeeper.ZooKeeperClientImpl;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import static constants.Constants.ENV_GRPC_PORT;
 import static constants.Constants.GENESIS_ADDRESS;
 
 @Service
@@ -90,7 +97,7 @@ public class TransactionManager {
         LOGGER.log(Level.INFO, String.format("- sequencers=[%s]", sequencers));
 
         // Same serverBuilder will be used by all services
-        ServerBuilder<?> serverBuilder = ServerBuilder.forPort(Integer.parseInt(serversAddresses.get(myServerId).split(":")[1]));
+        ServerBuilder<?> serverBuilder = ServerBuilder.forPort(Integer.parseInt(System.getenv(ENV_GRPC_PORT)));
 
         // Add services to the serverBuilder before continuing
         this.delegate.addServices(serverBuilder);
