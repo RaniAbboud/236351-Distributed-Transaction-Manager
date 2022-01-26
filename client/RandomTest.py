@@ -31,7 +31,7 @@ def runTest(servers):
             history = Requests.listEntireHistory(servers, suppress=True)
             unused_utxos = Utils.getAllUnusedUTxOsFromHistory(history)
             cnt = 0
-            firstTime = False
+            ## firstTime = False
 
         if chosenType == "TRANSACTION":
             transaction = Utils.createRandomTransaction(unused_utxos)
